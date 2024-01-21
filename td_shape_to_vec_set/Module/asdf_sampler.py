@@ -24,7 +24,7 @@ class ASDFSampler(object):
         self.n_heads=8
         self.d_head=64
         self.depth=24
-        self.sample_direction_num = 400
+        self.sample_direction_num = 200
         self.direction_upscale = 4
 
         self.device = device
@@ -44,7 +44,7 @@ class ASDFSampler(object):
         asdf_model = ASDFModel(
             max_sh_3d_degree=self.sh_3d_degree,
             max_sh_2d_degree=self.sh_2d_degree,
-            use_inv=True,
+            use_inv=False,
             dtype=torch.float32,
             device="cpu",
             sample_direction_num=self.sample_direction_num,

@@ -27,6 +27,7 @@ class ASDFTrainer(object):
         self.asdf_channel = 100
         self.sh_2d_degree = 4
         self.sh_3d_degree = 4
+        self.channels = int(6 + (2*self.sh_2d_degree+1) + ((self.sh_3d_degree+1)**2))
         self.n_heads=8
         self.d_head=64
         self.depth=24
@@ -37,7 +38,7 @@ class ASDFTrainer(object):
         self.lr = 1e-4
         self.weight_decay = 1e-10
         self.factor = 0.9
-        self.patience = 100
+        self.patience = 1000
         self.min_lr = 1e-6
         self.warmup_epochs = 100
         self.train_epochs = 2000
@@ -60,11 +61,11 @@ class ASDFTrainer(object):
             '_dheah' + str(self.d_head) + \
             '_depth' + str(self.depth)
         self.device = 'cuda'
-        self.asdf_dataset_folder_path = '/home/chli/chLi/Dataset/ShapeNet/asdf_final/'
+        self.asdf_dataset_folder_path = '/home/chli/chLi/Dataset/ShapeNet/asdf/'
 
         self.model = EDMPrecond(
             n_latents=self.asdf_channel,
-            channels=int(6 + (2*self.sh_2d_degree+1) + ((self.sh_3d_degree+1)**2)),
+            channels=self.channels,
             n_heads=self.n_heads,
             d_head=self.d_head,
             depth=self.depth).to(self.device)

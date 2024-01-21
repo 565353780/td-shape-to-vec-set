@@ -12,15 +12,18 @@ class ASDFDataset(Dataset):
         self.asdf_file_list = []
         # self.context_files_list = []
 
-        # """
+        """
         self.asdf_file_list = [
             "/home/chli/Nutstore Files/paper-materials-ASDF/Dataset/final.npy"
         ] * 1204
         return
-        # """
+        """
 
+        '''
         self.loadFinalASDFDataset(asdf_dataset_folder_path)
         return
+        '''
+
         self.loadDataset(asdf_dataset_folder_path)
         return
 
@@ -70,6 +73,7 @@ class ASDFDataset(Dataset):
                 self.asdf_file_list.append(asdf_folder_path + "final.npy")
                 # self.context_files_list.append(context_files)
 
+        self.asdf_file_list = self.asdf_file_list * 1024
         return True
 
     def __len__(self):
