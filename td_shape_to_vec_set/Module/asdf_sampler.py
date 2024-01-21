@@ -9,6 +9,7 @@ from data_convert.Method.data import toData
 from a_sdf.Model.asdf_model import ASDFModel
 from a_sdf.Method.pcd import getPointCloud
 from a_sdf.Method.render import renderGeometries
+from a_sdf.Module.o3d_viewer import O3DViewer
 
 from td_shape_to_vec_set.Model.edm_pre_cond import EDMPrecond
 
@@ -43,7 +44,7 @@ class ASDFSampler(object):
         asdf_model = ASDFModel(
             max_sh_3d_degree=self.sh_3d_degree,
             max_sh_2d_degree=self.sh_2d_degree,
-            use_inv=False,
+            use_inv=True,
             dtype=torch.float32,
             device="cpu",
             sample_direction_num=self.sample_direction_num,
@@ -76,7 +77,7 @@ class ASDFSampler(object):
 
     @torch.no_grad()
     def sample(
-        self, sample_num: int, rad_density: int, category_id: int=0
+        self, sample_num: int, diffuse_steps: int, rad_density: int, category_id: int=0
     ) -> bool:
         self.model.eval()
 
@@ -92,6 +93,7 @@ class ASDFSampler(object):
             batch_seeds=torch.arange(0, sample_num).to(
                 self.device
             ),
+            diffuse_steps=diffuse_steps,
         ).float()
 
         print(
@@ -102,8 +104,9 @@ class ASDFSampler(object):
             sampled_array.std(),
         )
 
+        asdf_model = self.toInitialASDFModel()
+
         for i in tqdm(range(sample_num)):
-            asdf_model = self.toInitialASDFModel()
             asdf_model.loadParams(sampled_array[i])
             asdf_points = asdf_model.toDetectPoints(rad_density)
             asdf_points = toData(asdf_points, "numpy")
@@ -115,4 +118,51 @@ class ASDFSampler(object):
             asdf_pcd_list.append(pcd)
 
         renderGeometries(asdf_pcd_list, "sample asdf point cloud")
+        return True
+
+    @torch.no_grad()
+    def step_sample(
+        self, sample_num: int, diffuse_steps: int, rad_density: int, category_id: int=0
+    ) -> bool:
+        self.model.eval()
+
+        object_dist = [2, 0, 2]
+
+        row_num = ceil(sqrt(sample_num))
+
+        print("start diffuse", sample_num, 'asdfs....')
+        sampled_array = self.model.sample(
+            cond=torch.Tensor([category_id] * sample_num).long().to(self.device),
+            batch_seeds=torch.arange(0, sample_num).to(
+                self.device
+            ),
+            diffuse_steps=diffuse_steps,
+            step_sample=True
+        )
+
+        o3d_viewer = O3DViewer()
+        o3d_viewer.createWindow()
+
+        asdf_model = self.toInitialASDFModel()
+        for i in range(diffuse_steps + 1):
+            print('start create asdf points for diffuse step Itr.' + str(i) + '...')
+
+            o3d_viewer.clearGeometries()
+
+            asdf_pcd_list = []
+            for j in tqdm(range(sample_num)):
+                asdf_model.loadParams(sampled_array[i][j])
+                asdf_points = asdf_model.toDetectPoints(rad_density)
+                asdf_points = toData(asdf_points, "numpy")
+                pcd = getPointCloud(asdf_points)
+
+                translate = [int(j / row_num) * object_dist[0], 0 * object_dist[1], (j % row_num) * object_dist[2]]
+
+                pcd.translate(translate)
+                asdf_pcd_list.append(pcd)
+
+            o3d_viewer.addGeometries(asdf_pcd_list)
+            o3d_viewer.update()
+
+        o3d_viewer.run()
         return True

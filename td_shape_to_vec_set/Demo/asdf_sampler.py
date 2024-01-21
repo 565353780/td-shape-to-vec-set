@@ -11,9 +11,11 @@ def demo():
     model_file_path = "./output/v1/model_best.pth"
     device = "cuda"
 
-    sample_num = 10
+    sample_num = 4
+    diffuse_steps = 25
     rad_density = 5
+    category_id = 0
 
     asdf_sampler = ASDFSampler(model_file_path, device)
-    asdf_sampler.sample(sample_num, rad_density)
+    asdf_sampler.step_sample(sample_num, diffuse_steps, rad_density, category_id)
     return True

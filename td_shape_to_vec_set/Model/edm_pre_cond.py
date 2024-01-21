@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 
 from td_shape_to_vec_set.Model.Transformer.latent_array import LatentArrayTransformer
-from td_shape_to_vec_set.Method.sample import edm_sampler
+from td_shape_to_vec_set.Method.sample import step_edm_sampler, edm_sampler
 from td_shape_to_vec_set.Module.stacked_random_generator import StackedRandomGenerator
 
 
@@ -70,7 +70,7 @@ class EDMPrecond(torch.nn.Module):
         return torch.as_tensor(sigma)
 
     @torch.no_grad()
-    def sample(self, cond, batch_seeds=None):
+    def sample(self, cond, batch_seeds=None, diffuse_steps:int = 18, step_sample: bool=False):
         # print(batch_seeds)
         if cond is not None:
             batch_size, device = *cond.shape, cond.device
@@ -86,7 +86,10 @@ class EDMPrecond(torch.nn.Module):
         rnd = StackedRandomGenerator(device, batch_seeds)
         latents = rnd.randn([batch_size, self.n_latents, self.channels], device=device)
 
-        return edm_sampler(self, latents, cond, randn_like=rnd.randn_like)
+        if step_sample:
+            return step_edm_sampler(self, latents, cond, randn_like=rnd.randn_like, num_steps=diffuse_steps)
+
+        return edm_sampler(self, latents, cond, randn_like=rnd.randn_like, num_steps=diffuse_steps)
 
 
 def kl_d512_m512_l8_edm():
