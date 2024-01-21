@@ -76,13 +76,6 @@ class ASDFDataset(Dataset):
         return len(self.asdf_file_list)
 
     def __getitem__(self, idx):
-        return (
-            torch.rand(2048, 3).type(torch.float32),
-            torch.rand(2048, 1).type(torch.float32),
-            torch.rand(2048, 3).type(torch.float32),
-            CATEGORY_IDS["02691156"],
-        )
-
         asdf_file_path = self.asdf_file_list[idx]
         asdf = np.load(asdf_file_path, allow_pickle=True).item()["params"]
         shuffle_asdf = np.random.permutation(asdf)
@@ -95,6 +88,11 @@ class ASDFDataset(Dataset):
             .reshape(1, 100, 40)
         )
         """
+
+        return (
+            torch.from_numpy(shuffle_asdf).type(torch.float32),
+            CATEGORY_IDS["02691156"],
+        )
 
         positions = shuffle_asdf[:, :6]
         params = shuffle_asdf[:, 6:]

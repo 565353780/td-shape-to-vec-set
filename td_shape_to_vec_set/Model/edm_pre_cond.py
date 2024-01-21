@@ -18,7 +18,6 @@ class EDMPrecond(torch.nn.Module):
         n_heads=8,
         d_head=64,
         depth=12,
-        # depth = 6,
     ):
         super().__init__()
         self.n_latents = n_latents

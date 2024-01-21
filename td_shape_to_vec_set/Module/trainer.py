@@ -98,20 +98,8 @@ class Trainer(object):
             surface = surface.to(device, non_blocking=True)
             categories = categories.to(device, non_blocking=True)
 
-            from td_shape_to_vec_set.Model.models_ae import kl_d512_m512_l8
-
-            ae = kl_d512_m512_l8(2048)
             with torch.cuda.amp.autocast(enabled=False):
-                _, x = ae.encode(surface)
-                loss = criterion(model, x, categories)
-                print("test:")
-                print("points:", points.shape)
-                print("labels:", labels.shape)
-                print("surface:", surface.shape)
-                print("categories:", categories.shape)
-                print("x:", x.shape)
-                print("loss:", loss.shape)
-                exit()
+                loss = criterion(model, surface, categories)
 
             loss_value = loss.item()
 
