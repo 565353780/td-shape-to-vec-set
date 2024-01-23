@@ -3,11 +3,9 @@ import torch
 import numpy as np
 from tqdm import tqdm
 from torch import nn
-from torch.optim import AdamW
 from torch.utils.data import DataLoader
 from transformers import optimization
-from torch.optim import Adagrad as OPTIMIZER
-from torch.optim.lr_scheduler import ReduceLROnPlateau as SCHEDULER
+from torch.optim import AdamW as OPTIMIZER
 
 from td_shape_to_vec_set.Loss.edm import EDMLoss
 from a_sdf.Method.path import createFileFolder, renameFile, removeFile
@@ -40,20 +38,17 @@ class ASDFTrainer(object):
         self.factor = 0.9
         self.patience = 1000
         self.min_lr = 1e-6
-        self.warmup_epochs = 100
-        self.train_epochs = 2000
+        self.warmup_epochs = 10
+        self.train_epochs = self.warmup_epochs * 40
         self.step = 0
         self.eval_step = 0
         self.loss_min = float('inf')
         self.eval_loss_min = float('inf')
-        #'_warmup' + str(self.warmup_epochs) + \
-        #'_train' + str(self.train_epochs) + \
         self.log_folder_name = getCurrentTime() + \
             '_lr' + str(self.lr) + \
             '_b' + str(self.batch_size * self.accumulation_steps) + \
-            '_factor' + str(self.factor) + \
-            '_patience' + str(self.patience) + \
-            '_minlr' + str(self.min_lr) + \
+            '_warmup' + str(self.warmup_epochs) + \
+            '_train' + str(self.train_epochs) + \
             '_asdf' + str(self.asdf_channel) + \
             '_sh2d' + str(self.sh_2d_degree) + \
             '_sh3d' + str(self.sh_3d_degree) + \
@@ -99,26 +94,15 @@ class ASDFTrainer(object):
                                           worker_init_fn=worker_init_fn)
         '''
 
-        '''
-        self.optimizer = AdamW(self.model.parameters(),
-                               lr=self.lr,
-                               weight_decay=self.weight_decay)
+        self.optimizer = OPTIMIZER(self.model.parameters(),
+                                   lr=self.lr,
+                                   weight_decay=self.weight_decay)
         self.scheduler = optimization.get_polynomial_decay_schedule_with_warmup(
             self.optimizer,
             num_warmup_steps=int(self.warmup_epochs * len(self.train_dataloader) / self.accumulation_steps),
             num_training_steps=int(self.train_epochs * len(self.train_dataloader) / self.accumulation_steps),
             lr_end=1e-6,
             power=3)
-        '''
-
-        self.optimizer = OPTIMIZER(self.model.parameters(), lr=self.lr, weight_decay=self.weight_decay)
-        self.scheduler = SCHEDULER(
-            self.optimizer,
-            mode="min",
-            factor=self.factor,
-            patience=self.patience,
-            min_lr=self.min_lr,
-        )
 
         self.logger = Logger()
 
@@ -264,7 +248,7 @@ class ASDFTrainer(object):
                 self.logger.addScalar("Lr/lr", self.getLr(), self.step)
 
                 if self.step % self.accumulation_steps == 0:
-                    self.scheduler.step(loss)
+                    self.scheduler.step()
 
             '''
             print("[INFO][Trainer::train]")

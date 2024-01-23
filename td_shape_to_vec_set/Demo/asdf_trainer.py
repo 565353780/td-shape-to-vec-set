@@ -7,7 +7,7 @@ sys.path.append("../a-sdf/")
 def demo():
     from td_shape_to_vec_set.Module.asdf_trainer import ASDFTrainer
 
-    model_file_path = './output/v1/model_best.pth'
+    model_file_path = './output/v3/model_last.pth'
     print_progress = True
 
     asdf_trainer = ASDFTrainer()

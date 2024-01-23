@@ -42,8 +42,8 @@ class Trainer(object):
         self.min_lr = 1e-6
         self.warmup_epochs = 1
         self.data_path = "test"
-        self.output_dir = "./output/"
-        self.log_dir = "./logs/"
+        self.output_dir = "./output/source/"
+        self.log_dir = "./logs/source/"
         self.device = "cpu"
         self.seed = 0
         self.resume = ""

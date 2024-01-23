@@ -8,7 +8,7 @@ sys.path.append("../a-sdf/")
 def demo():
     from td_shape_to_vec_set.Module.asdf_sampler import ASDFSampler
 
-    model_file_path = "./output/v1/model_last.pth"
+    model_file_path = "./output/v1/model_best.pth"
     device = "cuda"
 
     sample_num = 4
