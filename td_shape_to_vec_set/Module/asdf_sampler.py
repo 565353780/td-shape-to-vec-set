@@ -142,6 +142,7 @@ class ASDFSampler(object):
 
         o3d_viewer = O3DViewer()
         o3d_viewer.createWindow()
+        o3d_viewer.update()
 
         asdf_model = self.toInitialASDFModel()
         for i in range(diffuse_steps + 1):
