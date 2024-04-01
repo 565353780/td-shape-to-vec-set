@@ -1,1 +1,1 @@
-pip install h5py
+pip install h5py timm einops
