@@ -8,10 +8,10 @@ from transformers import optimization
 from torch.optim import AdamW as OPTIMIZER
 
 from td_shape_to_vec_set.Loss.edm import EDMLoss
-from a_sdf.Method.path import createFileFolder, renameFile, removeFile
-from a_sdf.Module.logger import Logger
+from ma_sh.Method.path import createFileFolder, renameFile, removeFile
+from ma_sh.Module.logger import Logger
 
-from td_shape_to_vec_set.Dataset.asdf import ASDFDataset
+from td_shape_to_vec_set.Dataset.mash import MashDataset
 from td_shape_to_vec_set.Model.edm_pre_cond import EDMPrecond
 from td_shape_to_vec_set.Method.time import getCurrentTime
 
@@ -20,9 +20,9 @@ def worker_init_fn(worker_id):
     np.random.seed(np.random.get_state()[1][0] + worker_id)
 
 
-class ASDFTrainer(object):
+class MashTrainer(object):
     def __init__(self):
-        self.asdf_channel = 100
+        self.mash_channel = 40
         self.sh_2d_degree = 4
         self.sh_3d_degree = 4
         self.channels = int(
@@ -32,16 +32,16 @@ class ASDFTrainer(object):
         self.d_head = 64
         self.depth = 24
 
-        self.batch_size = 64
+        self.batch_size = 128
         self.accumulation_steps = 1
-        self.num_workers = 0
+        self.num_workers = 4
         self.lr = 1e-4
         self.weight_decay = 1e-10
         self.factor = 0.9
         self.patience = 1000
         self.min_lr = 1e-6
-        self.warmup_epochs = 10
-        self.train_epochs = self.warmup_epochs * 40
+        self.warmup_epochs = 100
+        self.train_epochs = self.warmup_epochs * 100
         self.step = 0
         self.eval_step = 0
         self.loss_min = float("inf")
@@ -56,8 +56,8 @@ class ASDFTrainer(object):
             + str(self.warmup_epochs)
             + "_train"
             + str(self.train_epochs)
-            + "_asdf"
-            + str(self.asdf_channel)
+            + "_mash"
+            + str(self.mash_channel)
             + "_sh2d"
             + str(self.sh_2d_degree)
             + "_sh3d"
@@ -70,18 +70,18 @@ class ASDFTrainer(object):
             + str(self.depth)
         )
         self.device = "cuda"
-        self.asdf_dataset_folder_path = "/home/chli/chLi/Dataset/ShapeNet/asdf/"
+        self.dataset_root_folder_path = "/home/chli/Dataset/"
 
         self.model = EDMPrecond(
-            n_latents=self.asdf_channel,
+            n_latents=self.mash_channel,
             channels=self.channels,
             n_heads=self.n_heads,
             d_head=self.d_head,
             depth=self.depth,
         ).to(self.device)
         """
-        self.model = ASDFAutoEncoder(
-            asdf_channel=self.asdf_channel,
+        self.model = MashAutoEncoder(
+            mash_channel=self.mash_channel,
             sh_2d_degree=self.sh_2d_degree,
             sh_3d_degree=self.sh_3d_degree,
             hidden_dim=self.hidden_dim,
@@ -92,7 +92,7 @@ class ASDFTrainer(object):
         ).to(self.device)
         """
 
-        self.train_dataset = ASDFDataset(self.asdf_dataset_folder_path)
+        self.train_dataset = MashDataset(self.dataset_root_folder_path)
         # self.eval_dataset = PointsDataset(self.points_dataset_folder_path)
         self.train_dataloader = DataLoader(
             self.train_dataset,
@@ -187,10 +187,10 @@ class ASDFTrainer(object):
     def getLr(self) -> float:
         return self.optimizer.state_dict()["param_groups"][0]["lr"]
 
-    def trainStep(self, asdf_params, categories):
+    def trainStep(self, mash_params, categories):
         self.model.train()
 
-        loss = self.loss_func(self.model, asdf_params, categories)
+        loss = self.loss_func(self.model, mash_params, categories)
 
         loss_item = loss.clone().detach().cpu().numpy()
 
@@ -259,12 +259,12 @@ class ASDFTrainer(object):
             )
             if print_progress:
                 pbar = tqdm(total=len(self.train_dataloader))
-            for asdf_params, categories in self.train_dataloader:
+            for data in self.train_dataloader:
                 self.step += 1
 
-                asdf_params = asdf_params.to(self.device, non_blocking=True)
-                categories = categories.to(self.device, non_blocking=True)
-                loss = self.trainStep(asdf_params, categories)
+                mash_params = data["mash_params"].to(self.device, non_blocking=True)
+                categories = data["category_id"].to(self.device, non_blocking=True)
+                loss = self.trainStep(mash_params, categories)
 
                 if print_progress:
                     pbar.set_description("LOSS %.6f LR %.4f" % (loss, self.getLr()))
