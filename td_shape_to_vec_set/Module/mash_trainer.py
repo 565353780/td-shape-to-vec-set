@@ -41,7 +41,7 @@ class MashTrainer(object):
         self.patience = 1000
         self.min_lr = 1e-6
         self.warmup_epochs = 100
-        self.train_epochs = self.warmup_epochs * 100
+        self.train_epochs = 100000
         self.step = 0
         self.eval_step = 0
         self.loss_min = float("inf")
@@ -245,6 +245,9 @@ class MashTrainer(object):
         return True
 
     def train(self, print_progress=False):
+        if not self.logger.isValid():
+            self.loadSummaryWriter()
+
         total_epoch = 10000000
 
         self.model.zero_grad()
