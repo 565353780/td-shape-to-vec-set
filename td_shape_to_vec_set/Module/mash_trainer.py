@@ -7,6 +7,7 @@ from tqdm import tqdm
 from transformers import optimization
 from torch.utils.data import DataLoader
 from torch.optim import AdamW as OPTIMIZER
+from torch.utils.data.distributed import DistributedSampler
 from torch.nn.parallel import DistributedDataParallel as DDP
 
 
@@ -21,21 +22,9 @@ from td_shape_to_vec_set.Module.logger import Logger
 def worker_init_fn(worker_id):
     np.random.seed(np.random.get_state()[1][0] + worker_id)
 
-def setup(rank, world_size):
-    os.environ['MASTER_ADDR'] = 'localhost'
-    os.environ['MASTER_PORT'] = '12355'
-
-    # initialize the process group
-    dist.init_process_group("nccl", rank=rank, world_size=world_size)
-    return
-
-def cleanup():
-    dist.destroy_process_group()
-    return
-
 
 class MashTrainer(object):
-    def __init__(self, rank: int=0):
+    def __init__(self):
         self.mash_channel = 40
         self.sh_2d_degree = 4
         self.sh_3d_degree = 4
@@ -84,25 +73,29 @@ class MashTrainer(object):
             + str(self.depth)
         )
         self.dataset_root_folder_path = "/home/chli/Dataset/"
-        self.rank = rank
-        self.device = "cuda:" + str(self.rank)
+
+        dist.init_process_group(backend='nccl')
+
+        self.device_id = dist.get_rank() % torch.cuda.device_count()
+        self.device = 'cuda:' + str(self.device_id)
 
         self.model = EDMPrecond(
             n_latents=self.mash_channel,
             channels=self.channels,
             n_heads=self.n_heads,
             d_head=self.d_head,
-            depth=self.depth,
-        ).to(self.device)
-        self.model = DDP(self.model, device_ids=[self.device])
+            depth=self.depth).to(self.device)
+        self.model = DDP(self.model, device_ids=[self.device_id])
 
-        self.train_dataset = MashDataset(self.dataset_root_folder_path)
-        # self.eval_dataset = PointsDataset(self.points_dataset_folder_path)
+        self.train_dataset = MashDataset(self.dataset_root_folder_path, 'train')
+        # self.eval_dataset = MashDataset(self.points_dataset_folder_path, 'val')
+
+        train_sampler = DistributedSampler(self.train_dataset)
+
         self.train_dataloader = DataLoader(
-            self.train_dataset,
+            dataset=self.train_dataset,
+            sampler=train_sampler,
             batch_size=self.batch_size,
-            shuffle=True,
-            drop_last=True,
             num_workers=self.num_workers,
             worker_init_fn=worker_init_fn,
         )
@@ -115,8 +108,11 @@ class MashTrainer(object):
                                           worker_init_fn=worker_init_fn)
         """
 
+        eff_batch_size = self.batch_size * self.accumulation_steps * dist.get_world_size()
+        self.lr *= eff_batch_size
+        self.min_lr *= eff_batch_size
         self.optimizer = OPTIMIZER(
-            self.model.parameters(), lr=self.lr, weight_decay=self.weight_decay
+            self.model.module.parameters(), lr=self.lr, weight_decay=self.weight_decay
         )
         self.scheduler = optimization.get_polynomial_decay_schedule_with_warmup(
             self.optimizer,
@@ -135,10 +131,12 @@ class MashTrainer(object):
         self.logger = Logger()
 
         self.loss_func = EDMLoss()
-
         return
 
     def loadSummaryWriter(self):
+        if dist.get_rank() != 0:
+            return False
+
         self.logger.setLogFolder("./logs/" + self.log_folder_name + "/")
         return True
 
@@ -151,7 +149,7 @@ class MashTrainer(object):
 
         model_dict = torch.load(model_file_path)
 
-        self.model.load_state_dict(model_dict["model"])
+        self.model.module.load_state_dict(model_dict["model"])
 
         if not resume_model_only:
             self.optimizer.load_state_dict(model_dict["optimizer"])
@@ -169,11 +167,11 @@ class MashTrainer(object):
         return True
 
     def saveModel(self, save_model_file_path):
-        if self.rank != 0:
+        if dist.get_rank() != 0:
             return False
 
         model_dict = {
-            "model": self.model.state_dict(),
+            "model": self.model.module.state_dict(),
             "optimizer": self.optimizer.state_dict(),
             "step": self.step,
             "eval_step": self.eval_step,
@@ -213,7 +211,7 @@ class MashTrainer(object):
         nn.utils.clip_grad_norm_(self.model.parameters(), max_norm=1e2, norm_type=2)
 
         if self.step % self.accumulation_steps == 0:
-            for params in self.model.parameters():
+            for params in self.model.module.parameters():
                 params.grad[torch.isnan(params.grad)] = 0.0
 
             self.optimizer.step()
@@ -238,7 +236,7 @@ class MashTrainer(object):
 
         loss_sum = torch.sum(losses_tensor)
         loss_sum_float = loss_sum.detach().cpu().numpy()
-        self.summary_writer.add_scalar("Eval/loss_sum", loss_sum_float, self.eval_step)
+        self.logger.addScalar("Eval/loss_sum", loss_sum_float, self.eval_step)
 
         if loss_sum_float < self.eval_loss_min:
             self.eval_loss_min = loss_sum_float
@@ -249,10 +247,12 @@ class MashTrainer(object):
                 loss.detach() if len(loss.shape) > 0 else loss.detach().reshape(1)
             )
             loss_mean = torch.mean(loss_tensor)
-            self.summary_writer.add_scalar("Eval/" + key, loss_mean, self.eval_step)
+            self.logger.addScalar("Eval/" + key, loss_mean, self.eval_step)
         return True
 
     def train(self, print_progress=False):
+        print_progress = print_progress and dist.get_rank() == 0
+
         if not self.logger.isValid():
             self.loadSummaryWriter()
 
