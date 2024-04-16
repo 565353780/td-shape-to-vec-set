@@ -94,7 +94,7 @@ class Trainer(object):
         if log_writer is not None:
             print("log_dir: {}".format(log_writer.log_dir))
 
-        for data_iter_step, (points, labels, surface, categories) in enumerate(
+        for data_iter_step, (mash_params, categories) in enumerate(
             metric_logger.log_every(data_loader, print_freq, header)
         ):
             # we use a per iteration (instead of per epoch) lr scheduler
@@ -103,13 +103,11 @@ class Trainer(object):
                     optimizer, data_iter_step / len(data_loader) + epoch, self
                 )
 
-            points = points.to(device, non_blocking=True)
-            labels = labels.to(device, non_blocking=True).long()
-            surface = surface.to(device, non_blocking=True)
+            mash_params = mash_params.to(device, non_blocking=True)
             categories = categories.to(device, non_blocking=True)
 
             with torch.cuda.amp.autocast(enabled=False):
-                loss = criterion(model, surface, categories)
+                loss = criterion(model, mash_params, categories)
 
             loss_value = loss.item()
 
@@ -163,19 +161,15 @@ class Trainer(object):
         # switch to evaluation mode
         model.eval()
 
-        for points, labels, surface, categories in metric_logger.log_every(
+        for mash_params, categories in metric_logger.log_every(
             data_loader, 50, header
         ):
-            points = points.to(device, non_blocking=True)
-            labels = labels.to(device, non_blocking=True).long()
-            surface = surface.to(device, non_blocking=True)
+            mash_params = mash_params.to(device, non_blocking=True)
             categories = categories.to(device, non_blocking=True)
             # compute output
 
             with torch.cuda.amp.autocast(enabled=False):
-                loss = criterion(model, x, categories)
-
-            batch_size = surface.shape[0]
+                loss = criterion(model, mash_params, categories)
 
             metric_logger.update(loss=loss.item())
 
