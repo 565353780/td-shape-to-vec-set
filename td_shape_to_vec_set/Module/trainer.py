@@ -41,6 +41,7 @@ class Trainer(object):
             break
 
         self.batch_size = 64
+        self.warmup_epochs = 4
         self.epochs = 10000
         self.accum_iter = 1
         self.clip_grad = None
