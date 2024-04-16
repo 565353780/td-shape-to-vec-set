@@ -21,9 +21,21 @@ from td_shape_to_vec_set.Module.logger import Logger
 def worker_init_fn(worker_id):
     np.random.seed(np.random.get_state()[1][0] + worker_id)
 
+def setup(rank, world_size):
+    os.environ['MASTER_ADDR'] = 'localhost'
+    os.environ['MASTER_PORT'] = '12355'
+
+    # initialize the process group
+    dist.init_process_group("nccl", rank=rank, world_size=world_size)
+    return
+
+def cleanup():
+    dist.destroy_process_group()
+    return
+
 
 class MashTrainer(object):
-    def __init__(self):
+    def __init__(self, rank: int=0):
         self.mash_channel = 40
         self.sh_2d_degree = 4
         self.sh_3d_degree = 4
@@ -71,12 +83,9 @@ class MashTrainer(object):
             + "_depth"
             + str(self.depth)
         )
-        self.device = "cuda"
         self.dataset_root_folder_path = "/home/chli/Dataset/"
-
-        dist.init_process_group("nccl")
-        self.rank = dist.get_rank()
-        self.device_id = self.rank % torch.cuda.device_count()
+        self.rank = rank
+        self.device = "cuda:" + str(self.rank)
 
         self.model = EDMPrecond(
             n_latents=self.mash_channel,
@@ -84,8 +93,8 @@ class MashTrainer(object):
             n_heads=self.n_heads,
             d_head=self.d_head,
             depth=self.depth,
-        ).to(self.device_id)
-        self.model = DDP(self.model, device_ids=[self.device_id])
+        ).to(self.device)
+        self.model = DDP(self.model, device_ids=[self.device])
 
         self.train_dataset = MashDataset(self.dataset_root_folder_path)
         # self.eval_dataset = PointsDataset(self.points_dataset_folder_path)
@@ -160,6 +169,9 @@ class MashTrainer(object):
         return True
 
     def saveModel(self, save_model_file_path):
+        if self.rank != 0:
+            return False
+
         model_dict = {
             "model": self.model.state_dict(),
             "optimizer": self.optimizer.state_dict(),
@@ -194,13 +206,7 @@ class MashTrainer(object):
 
         if loss_item < self.loss_min:
             self.loss_min = loss_item
-            save_model_file_path = "./output/" + self.log_folder_name + "/model_best.pth"
-            if self.rank == 0:
-                self.saveModel(save_model_file_path)
-
-            dist.barrier()
-            map_location = {'cuda:%d' % 0: 'cuda:%d' % self.rank}
-            self.model.load_state_dict(torch.load(save_model_file_path, map_location=map_location))
+            self.saveModel("./output/" + self.log_folder_name + "/model_best.pth")
 
         loss = loss / self.accumulation_steps
         loss.backward()
@@ -236,13 +242,7 @@ class MashTrainer(object):
 
         if loss_sum_float < self.eval_loss_min:
             self.eval_loss_min = loss_sum_float
-            save_model_file_path = "./output/" + self.log_folder_name + "/model_eval_best.pth"
-            if self.rank == 0:
-                self.saveModel(save_model_file_path)
-
-            dist.barrier()
-            map_location = {'cuda:%d' % 0: 'cuda:%d' % self.rank}
-            self.model.load_state_dict(torch.load(save_model_file_path, map_location=map_location))
+            self.saveModel("./output/" + self.log_folder_name + "/model_eval_best.pth")
 
         for key, loss in losses.items():
             loss_tensor = (
@@ -299,12 +299,6 @@ class MashTrainer(object):
                 self.eval_step += 1
             """
 
-            save_model_file_path = "./output/" + self.log_folder_name + "/model_last.pth"
-            if self.rank == 0:
-                self.saveModel(save_model_file_path)
-
-            dist.barrier()
-            map_location = {'cuda:%d' % 0: 'cuda:%d' % self.rank}
-            self.model.load_state_dict(torch.load(save_model_file_path, map_location=map_location))
+            self.saveModel("./output/" + self.log_folder_name + "/model_last.pth")
 
         return True

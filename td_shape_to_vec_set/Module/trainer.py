@@ -11,7 +11,7 @@ from torch.utils.tensorboard import SummaryWriter
 
 from td_shape_to_vec_set.Data.smoothed_value import SmoothedValue
 from td_shape_to_vec_set.Loss.edm import EDMLoss
-from td_shape_to_vec_set.Dataset.asdf import ASDFDataset
+from td_shape_to_vec_set.Dataset.mash import MashDataset
 from td_shape_to_vec_set.Model.edm_pre_cond import EDMPrecond
 from td_shape_to_vec_set.Method.distributed import (
     init_distributed_mode,
@@ -29,34 +29,34 @@ from td_shape_to_vec_set.Optimizer.native_scaler import (
 
 class Trainer(object):
     def __init__(self) -> None:
-        self.asdf_dataset_folder_path = "/home/chli/chLi/Dataset/ShapeNet/asdf/"
+        self.mash_dataset_folder_path = "~/Dataset/"
         self.batch_size = 64
         self.epochs = 10000
         self.accum_iter = 1
-        self.point_cloud_size = 2048
         self.clip_grad = None
         self.weight_decay = 0.05
         self.lr = None
         self.blr = 1e-4
         self.layer_decay = 0.75
         self.min_lr = 1e-6
-        self.warmup_epochs = 1
-        self.data_path = "test"
-        self.output_dir = "./output/source/"
-        self.log_dir = "./logs/source/"
+        self.output_dir = "./output/"
+        self.log_dir = "./logs/"
         self.device = "cpu"
         self.seed = 0
         self.resume = ""
         self.start_epoch = 0
         self.eval = False
         self.dist_eval = False
-        self.num_workers = 1  # 60
+        self.num_workers = 60
         self.pin_mem = True
         self.no_pin_mem = False
         self.world_size = 1
         self.local_rank = -1
         self.dist_on_itp = False
         self.dist_url = "env://"
+
+        self.distributed = True
+        self.save_freq = 10
         return
 
     def train_one_epoch(
@@ -187,8 +187,8 @@ class Trainer(object):
         torch.manual_seed(seed)
         np.random.seed(seed)
 
-        dataset_train = ASDFDataset(self.asdf_dataset_folder_path)
-        dataset_val = ASDFDataset(self.asdf_dataset_folder_path)
+        dataset_train = MashDataset(self.mash_dataset_folder_path)
+        dataset_val = MashDataset(self.mash_dataset_folder_path)
 
         if True:  # self.distributed:
             num_tasks = get_world_size()
@@ -307,7 +307,7 @@ class Trainer(object):
                 self.clip_grad,
                 log_writer=log_writer,
             )
-            if self.output_dir and (epoch % 10 == 0 or epoch + 1 == self.epochs):
+            if self.output_dir and (epoch % self.save_freq == 0 or epoch + 1 == self.epochs):
                 save_model(
                     args=self,
                     model=model,
