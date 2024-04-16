@@ -72,7 +72,18 @@ class MashTrainer(object):
             + "_depth"
             + str(self.depth)
         )
-        self.dataset_root_folder_path = "/home/chli/Dataset/"
+
+        dataset_folder_path_list = [
+            '/home/chli/Dataset/',
+            '/data2/lch/Dataset/',
+            '/data/home/BA21001035/Dataset/',
+        ]
+        for dataset_folder_path in dataset_folder_path_list:
+            if not os.path.exists(dataset_folder_path):
+                continue
+
+            self.dataset_root_folder_path = dataset_folder_path
+            break
 
         dist.init_process_group(backend='nccl')
 
