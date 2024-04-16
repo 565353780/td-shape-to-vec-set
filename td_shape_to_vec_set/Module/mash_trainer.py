@@ -35,7 +35,7 @@ class MashTrainer(object):
         self.d_head = 64
         self.depth = 24
 
-        self.batch_size = 128
+        self.batch_size = 800
         self.accumulation_steps = 1
         self.num_workers = 4
         self.lr = 1e-4
@@ -119,7 +119,7 @@ class MashTrainer(object):
                                           worker_init_fn=worker_init_fn)
         """
 
-        lr_scale = self.accumulation_steps * dist.get_world_size()
+        lr_scale = self.batch_size * self.accumulation_steps * dist.get_world_size() / 256
         self.lr *= lr_scale
         self.min_lr *= lr_scale
         self.optimizer = OPTIMIZER(
