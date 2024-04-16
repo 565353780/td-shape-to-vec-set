@@ -76,7 +76,7 @@ class MashTrainer(object):
         dataset_folder_path_list = [
             '/home/chli/Dataset/',
             '/data2/lch/Dataset/',
-            '/data/home/BA21001035/Dataset/',
+            '/data1/home/BA21001035/Dataset/',
         ]
         for dataset_folder_path in dataset_folder_path_list:
             if not os.path.exists(dataset_folder_path):
