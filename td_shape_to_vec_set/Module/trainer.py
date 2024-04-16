@@ -95,7 +95,7 @@ class Trainer(object):
         if log_writer is not None:
             print("log_dir: {}".format(log_writer.log_dir))
 
-        for data_iter_step, (mash_params, categories) in enumerate(
+        for data_iter_step, data in enumerate(
             metric_logger.log_every(data_loader, print_freq, header)
         ):
             # we use a per iteration (instead of per epoch) lr scheduler
@@ -104,8 +104,8 @@ class Trainer(object):
                     optimizer, data_iter_step / len(data_loader) + epoch, self
                 )
 
-            mash_params = mash_params.to(device, non_blocking=True)
-            categories = categories.to(device, non_blocking=True)
+            mash_params = data['mash_params'].to(device, non_blocking=True)
+            categories = data['categories'].to(device, non_blocking=True)
 
             with torch.cuda.amp.autocast(enabled=False):
                 loss = criterion(model, mash_params, categories)
@@ -162,11 +162,11 @@ class Trainer(object):
         # switch to evaluation mode
         model.eval()
 
-        for mash_params, categories in metric_logger.log_every(
+        for data in metric_logger.log_every(
             data_loader, 50, header
         ):
-            mash_params = mash_params.to(device, non_blocking=True)
-            categories = categories.to(device, non_blocking=True)
+            mash_params = data['mash_params'].to(device, non_blocking=True)
+            categories = data['categories'].to(device, non_blocking=True)
             # compute output
 
             with torch.cuda.amp.autocast(enabled=False):
