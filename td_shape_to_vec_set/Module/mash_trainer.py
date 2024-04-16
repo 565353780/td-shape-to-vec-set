@@ -40,7 +40,7 @@ class MashTrainer(object):
         self.factor = 0.9
         self.patience = 1000
         self.min_lr = 1e-6
-        self.warmup_epochs = 100
+        self.warmup_epochs = 4
         self.train_epochs = 100000
         self.step = 0
         self.eval_step = 0

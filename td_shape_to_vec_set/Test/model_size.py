@@ -1,6 +1,5 @@
 import torch
 from torch import nn
-from torch_cluster import fps
 
 
 from td_shape_to_vec_set.Model.AutoEncoder.pre_norm import PreNorm
@@ -19,28 +18,14 @@ class AutoEncoder(nn.Module):
         dim=512,
         queries_dim=512,
         output_dim=1,
-        num_inputs=2048,
-        num_latents=512,
         heads=8,
         dim_head=64,
         weight_tie_layers=False,
-        decoder_ff=False,
+        decoder_ff=True,
     ):
         super().__init__()
 
         self.depth = depth
-
-        self.num_inputs = num_inputs
-        self.num_latents = num_latents
-
-        self.cross_attend_blocks = nn.ModuleList(
-            [
-                PreNorm(
-                    dim, Attention(dim, dim, heads=1, dim_head=dim), context_dim=dim
-                ),
-                PreNorm(dim, FeedForward(dim)),
-            ]
-        )
 
         self.point_embed = PointEmbed(dim=dim)
 
@@ -77,41 +62,6 @@ class AutoEncoder(nn.Module):
             nn.Linear(queries_dim, output_dim) if exists(output_dim) else nn.Identity()
         )
 
-    def encode(self, pc):
-        # pc: B x N x 3
-        B, N, D = pc.shape
-        assert N == self.num_inputs
-
-        # fps
-        flattened = pc.view(B * N, D)
-
-        batch = torch.arange(B).to(pc.device)
-        batch = torch.repeat_interleave(batch, N)
-
-        pos = flattened
-
-        ratio = 1.0 * self.num_latents / self.num_inputs
-
-        idx = fps(pos, batch, ratio=ratio)
-
-        sampled_pc = pos[idx]
-        sampled_pc = sampled_pc.view(B, -1, 3)
-        ######
-
-        sampled_pc_embeddings = self.point_embed(sampled_pc)
-
-        pc_embeddings = self.point_embed(pc)
-
-        cross_attn, cross_ff = self.cross_attend_blocks
-
-        x = (
-            cross_attn(sampled_pc_embeddings, context=pc_embeddings, mask=None)
-            + sampled_pc_embeddings
-        )
-        x = cross_ff(x) + x
-
-        return x
-
     def decode(self, x, queries):
         for self_attn, self_ff in self.layers:
             x = self_attn(x) + x
@@ -133,3 +83,19 @@ class AutoEncoder(nn.Module):
         o = self.decode(x, queries).squeeze(-1)
 
         return {"logits": o}
+
+
+def test():
+    dim = 512
+
+    model = AutoEncoder(
+        depth=24,
+        dim=dim,
+        queries_dim=dim,
+        output_dim=1,
+        heads=8,
+        dim_head=64,
+    )
+
+    torch.save(model.state_dict(), "./output/test.pth")
+    return True
