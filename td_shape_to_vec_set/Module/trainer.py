@@ -29,7 +29,17 @@ from td_shape_to_vec_set.Optimizer.native_scaler import (
 
 class Trainer(object):
     def __init__(self) -> None:
-        self.mash_dataset_folder_path = "~/Dataset/"
+        dataset_folder_path_list = [
+            '/home/chli/Dataset/',
+            '/data2/lch/Dataset/',
+        ]
+        for dataset_folder_path in dataset_folder_path_list:
+            if not os.path.exists(dataset_folder_path):
+                continue
+
+            self.mash_dataset_folder_path = dataset_folder_path
+            break
+
         self.batch_size = 64
         self.epochs = 10000
         self.accum_iter = 1
