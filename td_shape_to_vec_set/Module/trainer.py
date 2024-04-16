@@ -51,7 +51,7 @@ class Trainer(object):
         self.min_lr = 1e-6
         self.output_dir = "./output/"
         self.log_dir = "./logs/"
-        self.device = "cpu"
+        self.device = "cuda"
         self.seed = 0
         self.resume = ""
         self.start_epoch = 0
