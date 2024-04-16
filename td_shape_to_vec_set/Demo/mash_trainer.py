@@ -1,8 +1,3 @@
-import sys
-
-sys.path.append("../ma-sh/")
-
-
 def demo():
     from td_shape_to_vec_set.Module.mash_trainer import MashTrainer
 

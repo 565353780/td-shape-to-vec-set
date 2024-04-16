@@ -1,19 +1,21 @@
 import os
 import torch
 import numpy as np
-from tqdm import tqdm
+import torch.distributed as dist
 from torch import nn
-from torch.utils.data import DataLoader
+from tqdm import tqdm
 from transformers import optimization
+from torch.utils.data import DataLoader
 from torch.optim import AdamW as OPTIMIZER
+from torch.nn.parallel import DistributedDataParallel as DDP
+
 
 from td_shape_to_vec_set.Loss.edm import EDMLoss
-from ma_sh.Method.path import createFileFolder, renameFile, removeFile
-from ma_sh.Module.logger import Logger
-
 from td_shape_to_vec_set.Dataset.mash import MashDataset
 from td_shape_to_vec_set.Model.edm_pre_cond import EDMPrecond
+from td_shape_to_vec_set.Method.path import createFileFolder, renameFile, removeFile
 from td_shape_to_vec_set.Method.time import getCurrentTime
+from td_shape_to_vec_set.Module.logger import Logger
 
 
 def worker_init_fn(worker_id):
@@ -72,25 +74,18 @@ class MashTrainer(object):
         self.device = "cuda"
         self.dataset_root_folder_path = "/home/chli/Dataset/"
 
+        dist.init_process_group("nccl")
+        self.rank = dist.get_rank()
+        self.device_id = self.rank % torch.cuda.device_count()
+
         self.model = EDMPrecond(
             n_latents=self.mash_channel,
             channels=self.channels,
             n_heads=self.n_heads,
             d_head=self.d_head,
             depth=self.depth,
-        ).to(self.device)
-        """
-        self.model = MashAutoEncoder(
-            mash_channel=self.mash_channel,
-            sh_2d_degree=self.sh_2d_degree,
-            sh_3d_degree=self.sh_3d_degree,
-            hidden_dim=self.hidden_dim,
-            dtype=torch.float32,
-            device=self.device,
-            sample_direction_num=self.sample_direction_num,
-            direction_upscale=self.direction_upscale
-        ).to(self.device)
-        """
+        ).to(self.device_id)
+        self.model = DDP(self.model, device_ids=[self.device_id])
 
         self.train_dataset = MashDataset(self.dataset_root_folder_path)
         # self.eval_dataset = PointsDataset(self.points_dataset_folder_path)
@@ -131,6 +126,7 @@ class MashTrainer(object):
         self.logger = Logger()
 
         self.loss_func = EDMLoss()
+
         return
 
     def loadSummaryWriter(self):
@@ -198,7 +194,13 @@ class MashTrainer(object):
 
         if loss_item < self.loss_min:
             self.loss_min = loss_item
-            self.saveModel("./output/" + self.log_folder_name + "/model_best.pth")
+            save_model_file_path = "./output/" + self.log_folder_name + "/model_best.pth"
+            if self.rank == 0:
+                self.saveModel(save_model_file_path)
+
+            dist.barrier()
+            map_location = {'cuda:%d' % 0: 'cuda:%d' % self.rank}
+            self.model.load_state_dict(torch.load(save_model_file_path, map_location=map_location))
 
         loss = loss / self.accumulation_steps
         loss.backward()
@@ -234,7 +236,13 @@ class MashTrainer(object):
 
         if loss_sum_float < self.eval_loss_min:
             self.eval_loss_min = loss_sum_float
-            self.saveModel("./output/" + self.log_folder_name + "/model_eval_best.pth")
+            save_model_file_path = "./output/" + self.log_folder_name + "/model_eval_best.pth"
+            if self.rank == 0:
+                self.saveModel(save_model_file_path)
+
+            dist.barrier()
+            map_location = {'cuda:%d' % 0: 'cuda:%d' % self.rank}
+            self.model.load_state_dict(torch.load(save_model_file_path, map_location=map_location))
 
         for key, loss in losses.items():
             loss_tensor = (
@@ -291,5 +299,12 @@ class MashTrainer(object):
                 self.eval_step += 1
             """
 
-            self.saveModel("./output/" + self.log_folder_name + "/model_last.pth")
+            save_model_file_path = "./output/" + self.log_folder_name + "/model_last.pth"
+            if self.rank == 0:
+                self.saveModel(save_model_file_path)
+
+            dist.barrier()
+            map_location = {'cuda:%d' % 0: 'cuda:%d' % self.rank}
+            self.model.load_state_dict(torch.load(save_model_file_path, map_location=map_location))
+
         return True
