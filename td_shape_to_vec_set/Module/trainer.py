@@ -29,6 +29,16 @@ from td_shape_to_vec_set.Optimizer.native_scaler import (
 
 class Trainer(object):
     def __init__(self) -> None:
+        self.mash_channel = 40
+        self.sh_2d_degree = 4
+        self.sh_3d_degree = 4
+        self.channels = int(
+            6 + (2 * self.sh_2d_degree + 1) + ((self.sh_3d_degree + 1) ** 2)
+        )
+        self.n_heads = 8
+        self.d_head = 64
+        self.depth = 24
+
         dataset_folder_path_list = [
             '/home/chli/Dataset/',
             '/data2/lch/Dataset/',
@@ -41,9 +51,9 @@ class Trainer(object):
             break
 
         self.batch_size = 64
+        self.accum_iter = 1
         self.warmup_epochs = 4
         self.epochs = 10000
-        self.accum_iter = 1
         self.clip_grad = None
         self.weight_decay = 0.05
         self.lr = None
@@ -105,7 +115,7 @@ class Trainer(object):
                 )
 
             mash_params = data['mash_params'].to(device, non_blocking=True)
-            categories = data['categories'].to(device, non_blocking=True)
+            categories = data['category_id'].to(device, non_blocking=True)
 
             with torch.cuda.amp.autocast(enabled=False):
                 loss = criterion(model, mash_params, categories)
@@ -166,7 +176,7 @@ class Trainer(object):
             data_loader, 50, header
         ):
             mash_params = data['mash_params'].to(device, non_blocking=True)
-            categories = data['categories'].to(device, non_blocking=True)
+            categories = data['category_id'].to(device, non_blocking=True)
             # compute output
 
             with torch.cuda.amp.autocast(enabled=False):
@@ -244,7 +254,12 @@ class Trainer(object):
             drop_last=False,
         )
 
-        model = EDMPrecond(n_latents=512, channels=8, depth=24)
+        model = EDMPrecond(
+            n_latents=self.mash_channel,
+            channels=self.channels,
+            n_heads=self.n_heads,
+            d_head=self.d_head,
+            depth=self.depth)
         model.to(device)
 
         model_without_ddp = model
