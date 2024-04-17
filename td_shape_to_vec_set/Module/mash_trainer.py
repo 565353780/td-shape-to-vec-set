@@ -43,7 +43,7 @@ class MashTrainer(object):
         self.factor = 0.9
         self.patience = 1000
         self.min_lr = 1e-7
-        self.warmup_epochs = 0
+        self.warmup_epochs = 4
         self.train_epochs = 100000
         self.step = 0
         self.eval_step = 0
@@ -119,7 +119,7 @@ class MashTrainer(object):
                                           worker_init_fn=worker_init_fn)
         """
 
-        lr_scale = self.batch_size * self.accumulation_steps * dist.get_world_size() / 512
+        lr_scale = self.batch_size * self.accumulation_steps * dist.get_world_size() / 256
         self.lr *= lr_scale
         self.min_lr *= lr_scale
         self.optimizer = OPTIMIZER(
