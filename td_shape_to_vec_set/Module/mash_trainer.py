@@ -38,11 +38,11 @@ class MashTrainer(object):
         self.batch_size = 1000
         self.accumulation_steps = 1
         self.num_workers = 4
-        self.lr = 1e-5
+        self.lr = 1e-4
         self.weight_decay = 1e-10
         self.factor = 0.9
         self.patience = 1000
-        self.min_lr = 1e-7
+        self.min_lr = 1e-6
         self.warmup_epochs = 4
         self.train_epochs = 100000
         self.step = 0
@@ -74,9 +74,9 @@ class MashTrainer(object):
         )
 
         dataset_folder_path_list = [
-            '/home/chli/Dataset/',
-            '/data2/lch/Dataset/',
-            '/data1/home/BA21001035/Dataset/',
+            "/home/chli/Dataset/",
+            "/data2/lch/Dataset/",
+            "/data1/home/BA21001035/Dataset/",
         ]
         for dataset_folder_path in dataset_folder_path_list:
             if not os.path.exists(dataset_folder_path):
@@ -85,20 +85,21 @@ class MashTrainer(object):
             self.dataset_root_folder_path = dataset_folder_path
             break
 
-        dist.init_process_group(backend='nccl')
+        dist.init_process_group(backend="nccl")
 
         self.device_id = dist.get_rank() % torch.cuda.device_count()
-        self.device = 'cuda:' + str(self.device_id)
+        self.device = "cuda:" + str(self.device_id)
 
         self.model = EDMPrecond(
             n_latents=self.mash_channel,
             channels=self.channels,
             n_heads=self.n_heads,
             d_head=self.d_head,
-            depth=self.depth).to(self.device)
+            depth=self.depth,
+        ).to(self.device)
         self.model = DDP(self.model, device_ids=[self.device_id])
 
-        self.train_dataset = MashDataset(self.dataset_root_folder_path, 'train')
+        self.train_dataset = MashDataset(self.dataset_root_folder_path, "train")
         # self.eval_dataset = MashDataset(self.points_dataset_folder_path, 'val')
 
         train_sampler = DistributedSampler(self.train_dataset)
@@ -119,7 +120,9 @@ class MashTrainer(object):
                                           worker_init_fn=worker_init_fn)
         """
 
-        lr_scale = self.batch_size * self.accumulation_steps * dist.get_world_size() / 256
+        lr_scale = (
+            self.batch_size * self.accumulation_steps * dist.get_world_size() / 256
+        )
         self.lr *= lr_scale
         self.min_lr *= lr_scale
         self.optimizer = OPTIMIZER(
@@ -135,7 +138,7 @@ class MashTrainer(object):
             num_training_steps=int(
                 self.train_epochs * len(self.train_dataloader) / self.accumulation_steps
             ),
-            lr_end=1e-6,
+            lr_end=self.min_lr,
             power=3,
         )
 
