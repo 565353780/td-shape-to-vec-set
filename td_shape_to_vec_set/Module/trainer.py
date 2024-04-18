@@ -40,8 +40,8 @@ class Trainer(object):
         self.depth = 24
 
         dataset_folder_path_list = [
-            '/home/chli/Dataset/',
-            '/data2/lch/Dataset/',
+            "/home/chli/Dataset/",
+            "/data2/lch/Dataset/",
         ]
         for dataset_folder_path in dataset_folder_path_list:
             if not os.path.exists(dataset_folder_path):
@@ -114,8 +114,8 @@ class Trainer(object):
                     optimizer, data_iter_step / len(data_loader) + epoch, self
                 )
 
-            mash_params = data['mash_params'].to(device, non_blocking=True)
-            categories = data['category_id'].to(device, non_blocking=True)
+            mash_params = data["mash_params"].to(device, non_blocking=True)
+            categories = data["category_id"].to(device, non_blocking=True)
 
             with torch.cuda.amp.autocast(enabled=False):
                 loss = criterion(model, mash_params, categories)
@@ -172,11 +172,9 @@ class Trainer(object):
         # switch to evaluation mode
         model.eval()
 
-        for data in metric_logger.log_every(
-            data_loader, 50, header
-        ):
-            mash_params = data['mash_params'].to(device, non_blocking=True)
-            categories = data['category_id'].to(device, non_blocking=True)
+        for data in metric_logger.log_every(data_loader, 50, header):
+            mash_params = data["mash_params"].to(device, non_blocking=True)
+            categories = data["category_id"].to(device, non_blocking=True)
             # compute output
 
             with torch.cuda.amp.autocast(enabled=False):
@@ -259,7 +257,8 @@ class Trainer(object):
             channels=self.channels,
             n_heads=self.n_heads,
             d_head=self.d_head,
-            depth=self.depth)
+            depth=self.depth,
+        )
         model.to(device)
 
         model_without_ddp = model
@@ -327,7 +326,9 @@ class Trainer(object):
                 self.clip_grad,
                 log_writer=log_writer,
             )
-            if self.output_dir and (epoch % self.save_freq == 0 or epoch + 1 == self.epochs):
+            if self.output_dir and (
+                epoch % self.save_freq == 0 or epoch + 1 == self.epochs
+            ):
                 save_model(
                     args=self,
                     model=model,
