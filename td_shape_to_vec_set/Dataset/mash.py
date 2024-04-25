@@ -13,7 +13,7 @@ class MashDataset(Dataset):
     ) -> None:
         self.dataset_root_folder_path = dataset_root_folder_path
 
-        self.mash_folder_path = self.dataset_root_folder_path + "Mash/"
+        self.mash_folder_path = self.dataset_root_folder_path + "MashV2/"
 
         assert os.path.exists(self.mash_folder_path)
 
