@@ -6,7 +6,7 @@ from torch import nn
 from tqdm import tqdm
 from transformers import optimization
 from torch.utils.data import DataLoader
-from torch.optim import AdamW as OPTIMIZER
+from torch.optim import AdamW
 from torch.utils.data.distributed import DistributedSampler
 from torch.nn.parallel import DistributedDataParallel as DDP
 
@@ -25,9 +25,9 @@ def worker_init_fn(worker_id):
 
 class MashTrainer(object):
     def __init__(self):
-        self.mash_channel = 40
+        self.mash_channel = 400
         self.sh_2d_degree = 4
-        self.sh_3d_degree = 4
+        self.sh_3d_degree = 3
         self.channels = int(
             6 + (2 * self.sh_2d_degree + 1) + ((self.sh_3d_degree + 1) ** 2)
         )
@@ -73,10 +73,10 @@ class MashTrainer(object):
             + str(self.depth)
         )
 
+        HOME = os.environ["HOME"]
         dataset_folder_path_list = [
-            "/home/chli/Dataset/",
+            HOME + "/Dataset/",
             "/data2/lch/Dataset/",
-            "/data1/home/BA21001035/Dataset/",
         ]
         for dataset_folder_path in dataset_folder_path_list:
             if not os.path.exists(dataset_folder_path):
@@ -99,8 +99,7 @@ class MashTrainer(object):
         ).to(self.device)
         self.model = DDP(self.model, device_ids=[self.device_id])
 
-        self.train_dataset = MashDataset(self.dataset_root_folder_path, "train")
-        # self.eval_dataset = MashDataset(self.points_dataset_folder_path, 'val')
+        self.train_dataset = MashDataset(self.dataset_root_folder_path)
 
         train_sampler = DistributedSampler(self.train_dataset)
 
@@ -111,21 +110,13 @@ class MashTrainer(object):
             num_workers=self.num_workers,
             worker_init_fn=worker_init_fn,
         )
-        """
-        self.eval_dataloader = DataLoader(self.eval_dataset,
-                                          batch_size=self.batch_size,
-                                          shuffle=False,
-                                          drop_last=False,
-                                          num_workers=self.num_workers,
-                                          worker_init_fn=worker_init_fn)
-        """
 
         lr_scale = (
             self.batch_size * self.accumulation_steps * dist.get_world_size() / 256
         )
         self.lr *= lr_scale
         self.min_lr *= lr_scale
-        self.optimizer = OPTIMIZER(
+        self.optimizer = AdamW(
             self.model.module.parameters(), lr=self.lr, weight_decay=self.weight_decay
         )
         self.scheduler = optimization.get_polynomial_decay_schedule_with_warmup(
