@@ -35,10 +35,10 @@ class MashTrainer(object):
         self.d_head = 64
         self.depth = 24
 
-        self.batch_size = 1000
+        self.batch_size = 80
         self.accumulation_steps = 1
         self.num_workers = 4
-        self.lr = 1e-4
+        self.lr = 1e-5
         self.weight_decay = 1e-10
         self.factor = 0.9
         self.patience = 1000
@@ -283,26 +283,15 @@ class MashTrainer(object):
                 loss = self.trainStep(mash_params, categories)
 
                 if print_progress:
-                    pbar.set_description("LOSS %.6f LR %.4f" % (loss, self.getLr()))
+                    pbar.set_description(
+                        "LOSS %.6f LR %.4f*1e-6" % (loss, self.getLr() * 1e6)
+                    )
                     pbar.update(1)
 
                 self.logger.addScalar("Lr/lr", self.getLr(), self.step)
 
                 if self.step % self.accumulation_steps == 0:
                     self.scheduler.step()
-
-            """
-            print("[INFO][Trainer::train]")
-            print("\t start evaling, epoch : " + str(epoch + 1) + "/" +
-                  str(total_epoch) + "...")
-            for_data = self.eval_dataloader
-            if print_progress:
-                for_data = tqdm(for_data)
-            #TODO: compute mean losses for one eval epoch
-            for data in for_data:
-                self.evalStep(data)
-                self.eval_step += 1
-            """
 
             self.saveModel("./output/" + self.log_folder_name + "/model_last.pth")
 
