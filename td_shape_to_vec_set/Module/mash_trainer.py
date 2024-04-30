@@ -26,8 +26,8 @@ def worker_init_fn(worker_id):
 class MashTrainer(object):
     def __init__(self):
         self.mash_channel = 400
-        self.sh_2d_degree = 4
-        self.sh_3d_degree = 3
+        self.sh_2d_degree = 3
+        self.sh_3d_degree = 2
         self.channels = int(
             6 + (2 * self.sh_2d_degree + 1) + ((self.sh_3d_degree + 1) ** 2)
         )
