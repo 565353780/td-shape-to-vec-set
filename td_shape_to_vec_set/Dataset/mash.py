@@ -65,7 +65,28 @@ class MashDataset(Dataset):
         mask_params = mash_params["mask_params"]
         sh_params = mash_params["sh_params"]
 
-        mash_params = np.hstack([rotate_vectors, positions, mask_params, sh_params])
+        if True:
+            scale_range = [0.9, 1.1]
+            move_range = [-0.1, 0.1]
+
+            random_scale = (
+                scale_range[0] + (scale_range[1] - scale_range[0]) * np.random.rand()
+            )
+            random_translate = move_range[0] + (
+                move_range[1] - move_range[0]
+            ) * np.random.rand(3)
+
+            mash_params = np.hstack(
+                [
+                    rotate_vectors,
+                    positions * random_scale + random_translate,
+                    mask_params,
+                    sh_params * random_scale,
+                ]
+            )
+        else:
+            mash_params = np.hstack([rotate_vectors, positions, mask_params, sh_params])
+
         mash_params = mash_params[np.random.permutation(mash_params.shape[0])]
 
         feed_dict = {
