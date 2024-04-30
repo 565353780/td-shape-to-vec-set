@@ -5,6 +5,7 @@ from tqdm import tqdm
 from typing import Union
 
 from ma_sh.Model.mash import Mash
+from ma_sh.Method.data import toNumpy
 from ma_sh.Method.pcd import getPointCloud
 from ma_sh.Method.render import renderGeometries
 from ma_sh.Module.o3d_viewer import O3DViewer
@@ -107,24 +108,32 @@ class MashSampler(object):
         for i in tqdm(range(sample_num)):
             mash_params = sampled_array[i]
 
-            start_idx = 0
-            end_idx = 2 * self.sh_2d_degree + 1
-            mask_params = mash_params[:, start_idx:end_idx]
+            if False:
+                sh2d = 2 * self.sh_2d_degree + 1
 
-            start_idx = end_idx
-            end_idx += (self.sh_3d_degree + 1) ** 2
-            sh_params = mash_params[:, start_idx:end_idx]
+                rotation_vectors = mash_params[:, :3]
+                positions = mash_params[:, 3:6]
+                mask_params = mash_params[:, 6 : 6 + sh2d]
+                sh_params = mash_params[:, 6 + sh2d :]
+            else:
+                start_idx = 0
+                end_idx = 2 * self.sh_2d_degree + 1
+                mask_params = mash_params[:, start_idx:end_idx]
+                sh2d = 2 * self.sh_2d_degree + 1
 
-            start_idx = end_idx
-            end_idx += 3
-            rotation_vectors = mash_params[:, start_idx:end_idx]
-
-            start_idx = end_idx
-            end_idx += 3
-            positions = mash_params[:, start_idx:end_idx]
+                start_idx = end_idx
+                end_idx += (self.sh_3d_degree + 1) ** 2
+                sh_params = mash_params[:, start_idx:end_idx]
+                start_idx = end_idx
+                end_idx += 3
+                rotation_vectors = mash_params[:, start_idx:end_idx]
+                start_idx = end_idx
+                end_idx += 3
+                positions = mash_params[:, start_idx:end_idx]
 
             mash_model.loadParams(mask_params, sh_params, rotation_vectors, positions)
-            mash_points = mash_model.toSamplePoints().detach().clone().cpu().numpy()
+            boundary_pts, inner_pts, inner_idxs = mash_model.toSamplePoints()
+            mash_points = toNumpy(torch.vstack([boundary_pts, inner_pts]))
             pcd = getPointCloud(mash_points)
 
             translate = [
@@ -174,26 +183,18 @@ class MashSampler(object):
             for j in tqdm(range(sample_num)):
                 mash_params = sampled_array[i][j]
 
-                start_idx = 0
-                end_idx = 2 * self.sh_2d_degree + 1
-                mask_params = mash_params[:, start_idx:end_idx]
+                sh2d = 2 * self.sh_2d_degree + 1
 
-                start_idx = end_idx
-                end_idx += (self.sh_3d_degree + 1) ** 2
-                sh_params = mash_params[:, start_idx:end_idx]
-
-                start_idx = end_idx
-                end_idx += 3
-                rotation_vectors = mash_params[:, start_idx:end_idx]
-
-                start_idx = end_idx
-                end_idx += 3
-                positions = mash_params[:, start_idx:end_idx]
+                rotation_vectors = mash_params[:, :3]
+                positions = mash_params[:, 3:6]
+                mask_params = mash_params[:, 6 : 6 + sh2d]
+                sh_params = mash_params[:, 6 + sh2d :]
 
                 mash_model.loadParams(
                     mask_params, sh_params, rotation_vectors, positions
                 )
-                mash_points = mash_model.toSamplePoints().detach().clone().cpu().numpy()
+                boundary_pts, inner_pts, inner_idxs = mash_model.toSamplePoints()
+                mash_points = toNumpy(torch.vstack([boundary_pts, inner_pts]))
                 pcd = getPointCloud(mash_points)
 
                 translate = [
