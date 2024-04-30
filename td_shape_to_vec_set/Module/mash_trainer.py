@@ -35,10 +35,10 @@ class MashTrainer(object):
         self.d_head = 64
         self.depth = 24
 
-        self.batch_size = 80
+        self.batch_size = 20
         self.accumulation_steps = 1
         self.num_workers = 4
-        self.lr = 1e-5
+        self.lr = 1e-3
         self.weight_decay = 1e-10
         self.factor = 0.9
         self.patience = 1000

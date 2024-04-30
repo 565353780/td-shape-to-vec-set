@@ -17,9 +17,9 @@ class MashSampler(object):
     def __init__(
         self, model_file_path: Union[str, None] = None, device: str = "cpu"
     ) -> None:
-        self.mash_channel = 40
-        self.sh_2d_degree = 4
-        self.sh_3d_degree = 4
+        self.mash_channel = 400
+        self.sh_2d_degree = 3
+        self.sh_3d_degree = 2
         self.channels = int(
             6 + (2 * self.sh_2d_degree + 1) + ((self.sh_3d_degree + 1) ** 2)
         )
@@ -79,74 +79,16 @@ class MashSampler(object):
         sample_num: int,
         diffuse_steps: int,
         category_id: int = 0,
-    ) -> bool:
+    ) -> torch.Tensor:
         self.model.eval()
 
-        object_dist = [2, 0, 2]
-
-        row_num = ceil(sqrt(sample_num))
-
-        mash_pcd_list = []
-
-        print("start diffuse", sample_num, "mashs....")
         sampled_array = self.model.sample(
             cond=torch.Tensor([category_id] * sample_num).long().to(self.device),
             batch_seeds=torch.arange(0, sample_num).to(self.device),
             diffuse_steps=diffuse_steps,
         ).float()
 
-        print(
-            sampled_array.shape,
-            sampled_array.max(),
-            sampled_array.min(),
-            sampled_array.mean(),
-            sampled_array.std(),
-        )
-
-        mash_model = self.toInitialMashModel()
-
-        for i in tqdm(range(sample_num)):
-            mash_params = sampled_array[i]
-
-            if False:
-                sh2d = 2 * self.sh_2d_degree + 1
-
-                rotation_vectors = mash_params[:, :3]
-                positions = mash_params[:, 3:6]
-                mask_params = mash_params[:, 6 : 6 + sh2d]
-                sh_params = mash_params[:, 6 + sh2d :]
-            else:
-                start_idx = 0
-                end_idx = 2 * self.sh_2d_degree + 1
-                mask_params = mash_params[:, start_idx:end_idx]
-                sh2d = 2 * self.sh_2d_degree + 1
-
-                start_idx = end_idx
-                end_idx += (self.sh_3d_degree + 1) ** 2
-                sh_params = mash_params[:, start_idx:end_idx]
-                start_idx = end_idx
-                end_idx += 3
-                rotation_vectors = mash_params[:, start_idx:end_idx]
-                start_idx = end_idx
-                end_idx += 3
-                positions = mash_params[:, start_idx:end_idx]
-
-            mash_model.loadParams(mask_params, sh_params, rotation_vectors, positions)
-            boundary_pts, inner_pts, inner_idxs = mash_model.toSamplePoints()
-            mash_points = toNumpy(torch.vstack([boundary_pts, inner_pts]))
-            pcd = getPointCloud(mash_points)
-
-            translate = [
-                int(i / row_num) * object_dist[0],
-                0 * object_dist[1],
-                (i % row_num) * object_dist[2],
-            ]
-
-            pcd.translate(translate)
-            mash_pcd_list.append(pcd)
-
-        renderGeometries(mash_pcd_list, "sample mash point cloud")
-        return True
+        return sampled_array
 
     @torch.no_grad()
     def step_sample(
@@ -193,8 +135,7 @@ class MashSampler(object):
                 mash_model.loadParams(
                     mask_params, sh_params, rotation_vectors, positions
                 )
-                boundary_pts, inner_pts, inner_idxs = mash_model.toSamplePoints()
-                mash_points = toNumpy(torch.vstack([boundary_pts, inner_pts]))
+                mash_points = toNumpy(torch.vstack(mash_model.toSamplePoints()[:2]))
                 pcd = getPointCloud(mash_points)
 
                 translate = [
