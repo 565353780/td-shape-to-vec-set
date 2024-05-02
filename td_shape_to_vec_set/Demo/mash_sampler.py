@@ -102,6 +102,7 @@ def demo():
         renderGeometries(mash_pcd_list, "sample mash point cloud")
 
     if True:
+        os.makedirs('./output/', exist_ok=True)
         for i in range(len(mash_pcd_list)):
             o3d.io.write_point_cloud(
                 "./output/sample_mash_pcd_" + str(i) + ".ply",
