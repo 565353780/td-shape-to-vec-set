@@ -18,6 +18,7 @@ class EDMPrecond(torch.nn.Module):
         n_heads=8,
         d_head=64,
         depth=12,
+        context_dim=768,
     ):
         super().__init__()
         self.n_latents = n_latents
@@ -27,15 +28,17 @@ class EDMPrecond(torch.nn.Module):
         self.sigma_max = sigma_max
         self.sigma_data = sigma_data
 
+        self.category_emb = nn.Embedding(55, context_dim)
+
         self.model = LatentArrayTransformer(
             in_channels=channels,
             t_channels=256,
             n_heads=n_heads,
             d_head=d_head,
             depth=depth,
+            context_dim=context_dim,
         )
-
-        self.category_emb = nn.Embedding(55, n_heads * d_head)
+        return
 
     def emb_category(self, class_labels):
         return self.category_emb(class_labels).unsqueeze(1)

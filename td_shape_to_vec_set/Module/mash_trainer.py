@@ -32,8 +32,9 @@ class MashTrainer(object):
             6 + (2 * self.sh_2d_degree + 1) + ((self.sh_3d_degree + 1) ** 2)
         )
         self.n_heads = 1
-        self.d_head = 768
-        self.depth = 12
+        self.d_head = 256
+        self.depth = 24
+        self.context_dim = 768
 
         self.batch_size = 32
         self.accumulation_steps = 1
@@ -96,6 +97,7 @@ class MashTrainer(object):
             n_heads=self.n_heads,
             d_head=self.d_head,
             depth=self.depth,
+            context_dim=self.context_dim,
         ).to(self.device)
         self.model = DDP(self.model, device_ids=[self.device_id])
 
