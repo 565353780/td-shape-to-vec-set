@@ -47,7 +47,7 @@ class MashSampler(object):
             self.sh_2d_degree,
             self.sh_3d_degree,
             dtype=torch.float32,
-            device="cpu",
+            device=self.device,
         )
         return mash_model
 
