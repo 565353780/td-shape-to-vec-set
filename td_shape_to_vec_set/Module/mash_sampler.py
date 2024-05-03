@@ -7,7 +7,6 @@ from typing import Union
 from ma_sh.Model.mash import Mash
 from ma_sh.Method.data import toNumpy
 from ma_sh.Method.pcd import getPointCloud
-from ma_sh.Method.render import renderGeometries
 from ma_sh.Module.o3d_viewer import O3DViewer
 
 from td_shape_to_vec_set.Model.edm_pre_cond import EDMPrecond
@@ -23,9 +22,9 @@ class MashSampler(object):
         self.channels = int(
             6 + (2 * self.sh_2d_degree + 1) + ((self.sh_3d_degree + 1) ** 2)
         )
-        self.n_heads = 8
+        self.n_heads = 1
         self.d_head = 64
-        self.depth = 24
+        self.depth = 12
 
         self.device = device
 

@@ -17,6 +17,7 @@ from td_shape_to_vec_set.Module.mash_sampler import MashSampler
 
 def demo():
     output_folder_path = "../Results/output-td/"
+    output_folder_path = './output/'
     model_folder_name_list = os.listdir(output_folder_path)
 
     valid_model_folder_name_list = []
@@ -31,7 +32,7 @@ def demo():
 
     valid_model_folder_name_list.sort()
     model_folder_path = valid_model_folder_name_list[-1]
-    model_folder_path = 'pretrain-v5'
+    # model_folder_path = 'pretrain-v5'
     model_file_path = output_folder_path + model_folder_path + "/model_last.pth"
     device = "cpu"
 

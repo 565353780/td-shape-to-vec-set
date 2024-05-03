@@ -13,6 +13,7 @@ from torch.nn.parallel import DistributedDataParallel as DDP
 
 from td_shape_to_vec_set.Loss.edm import EDMLoss
 from td_shape_to_vec_set.Dataset.mash import MashDataset
+from td_shape_to_vec_set.Dataset.image_embedding import ImageEmbeddingDataset
 from td_shape_to_vec_set.Model.edm_pre_cond import EDMPrecond
 from td_shape_to_vec_set.Method.path import createFileFolder, renameFile, removeFile
 from td_shape_to_vec_set.Method.time import getCurrentTime
@@ -31,14 +32,14 @@ class MashTrainer(object):
         self.channels = int(
             6 + (2 * self.sh_2d_degree + 1) + ((self.sh_3d_degree + 1) ** 2)
         )
-        self.n_heads = 8
-        self.d_head = 64
-        self.depth = 24
+        self.n_heads = 1
+        self.d_head = 768
+        self.depth = 12
 
-        self.batch_size = 20
+        self.batch_size = 32
         self.accumulation_steps = 1
-        self.num_workers = 4
-        self.lr = 1e-3
+        self.num_workers = 16
+        self.lr = 1e-4
         self.weight_decay = 1e-10
         self.factor = 0.9
         self.patience = 1000
@@ -97,15 +98,25 @@ class MashTrainer(object):
             d_head=self.d_head,
             depth=self.depth,
         ).to(self.device)
-        self.model = DDP(self.model, device_ids=[self.device_id])
+        self.model = DDP(self.model, device_ids=[self.device_id], find_unused_parameters=True)
 
-        self.train_dataset = MashDataset(self.dataset_root_folder_path)
+        mash_dataset = MashDataset(self.dataset_root_folder_path)
+        image_embedding_dataset = ImageEmbeddingDataset(self.dataset_root_folder_path)
 
-        train_sampler = DistributedSampler(self.train_dataset)
+        mash_sampler = DistributedSampler(mash_dataset)
+        image_embedding_sampler = DistributedSampler(image_embedding_dataset)
 
-        self.train_dataloader = DataLoader(
-            dataset=self.train_dataset,
-            sampler=train_sampler,
+        self.mash_dataloader = DataLoader(
+            dataset=mash_dataset,
+            sampler=mash_sampler,
+            batch_size=self.batch_size,
+            num_workers=self.num_workers,
+            worker_init_fn=worker_init_fn,
+        )
+
+        self.image_embedding_dataloader = DataLoader(
+            dataset=image_embedding_dataset,
+            sampler=image_embedding_sampler,
             batch_size=self.batch_size,
             num_workers=self.num_workers,
             worker_init_fn=worker_init_fn,
@@ -123,11 +134,11 @@ class MashTrainer(object):
             self.optimizer,
             num_warmup_steps=int(
                 self.warmup_epochs
-                * len(self.train_dataloader)
+                * len(self.mash_dataloader)
                 / self.accumulation_steps
             ),
             num_training_steps=int(
-                self.train_epochs * len(self.train_dataloader) / self.accumulation_steps
+                self.train_epochs * len(self.mash_dataloader) / self.accumulation_steps
             ),
             lr_end=self.min_lr,
             power=3,
@@ -198,10 +209,10 @@ class MashTrainer(object):
     def getLr(self) -> float:
         return self.optimizer.state_dict()["param_groups"][0]["lr"]
 
-    def trainStep(self, mash_params, categories):
+    def trainStep(self, mash_params, condition):
         self.model.train()
 
-        loss = self.loss_func(self.model, mash_params, categories)
+        loss = self.loss_func(self.model, mash_params, condition)
 
         loss_item = loss.clone().detach().cpu().numpy()
 
@@ -213,11 +224,11 @@ class MashTrainer(object):
 
         loss = loss / self.accumulation_steps
         loss.backward()
-        nn.utils.clip_grad_norm_(self.model.parameters(), max_norm=1e2, norm_type=2)
+        #nn.utils.clip_grad_norm_(self.model.parameters(), max_norm=1e2, norm_type=2)
 
         if self.step % self.accumulation_steps == 0:
-            for params in self.model.module.parameters():
-                params.grad[torch.isnan(params.grad)] = 0.0
+            #for params in self.model.module.parameters():
+            #    params.grad[torch.isnan(params.grad)] = 0.0
 
             self.optimizer.step()
 
@@ -225,38 +236,8 @@ class MashTrainer(object):
             self.optimizer.zero_grad()
         return loss_item
 
-    def evalStep(self, data):
-        self.model.eval()
-
-        data = self.model(data)
-
-        losses = data["losses"]
-
-        losses_tensor = torch.cat(
-            [
-                loss if len(loss.shape) > 0 else loss.reshape(1)
-                for loss in data["losses"].values()
-            ]
-        )
-
-        loss_sum = torch.sum(losses_tensor)
-        loss_sum_float = loss_sum.detach().cpu().numpy()
-        self.logger.addScalar("Eval/loss_sum", loss_sum_float, self.eval_step)
-
-        if loss_sum_float < self.eval_loss_min:
-            self.eval_loss_min = loss_sum_float
-            self.saveModel("./output/" + self.log_folder_name + "/model_eval_best.pth")
-
-        for key, loss in losses.items():
-            loss_tensor = (
-                loss.detach() if len(loss.shape) > 0 else loss.detach().reshape(1)
-            )
-            loss_mean = torch.mean(loss_tensor)
-            self.logger.addScalar("Eval/" + key, loss_mean, self.eval_step)
-        return True
-
-    def train(self, print_progress=False):
-        print_progress = print_progress and dist.get_rank() == 0
+    def train(self):
+        print_progress = dist.get_rank() == 0
 
         if not self.logger.isValid():
             self.loadSummaryWriter()
@@ -274,8 +255,8 @@ class MashTrainer(object):
                 + "..."
             )
             if print_progress:
-                pbar = tqdm(total=len(self.train_dataloader))
-            for data in self.train_dataloader:
+                pbar = tqdm(total=len(self.mash_dataloader))
+            for data in self.mash_dataloader:
                 self.step += 1
 
                 mash_params = data["mash_params"].to(self.device, non_blocking=True)
@@ -284,7 +265,33 @@ class MashTrainer(object):
 
                 if print_progress:
                     pbar.set_description(
-                        "LOSS %.6f LR %.4f*1e-6" % (loss, self.getLr() * 1e6)
+                        "[Mash] LOSS %.6f LR %.4f*1e-6" % (loss, self.getLr() * 1e6)
+                    )
+                    pbar.update(1)
+
+                self.logger.addScalar("Lr/lr", self.getLr(), self.step)
+
+                if self.step % self.accumulation_steps == 0:
+                    self.scheduler.step()
+
+            self.saveModel("./output/" + self.log_folder_name + "/model_last.pth")
+
+            if print_progress:
+                pbar = tqdm(total=len(self.image_embedding_dataloader))
+            for data in self.image_embedding_dataloader:
+                self.step += 1
+
+                mash_params = data["mash_params"].to(self.device, non_blocking=True)
+                image_embedding = data["image_embedding"]
+                key_idx = np.random.choice(len(image_embedding.keys()))
+                key = list(image_embedding.keys())[key_idx]
+                image_embedding = image_embedding[key].to(self.device, non_blocking=True)
+
+                loss = self.trainStep(mash_params, image_embedding)
+
+                if print_progress:
+                    pbar.set_description(
+                        "[Image Embedding] LOSS %.6f LR %.4f*1e-6" % (loss, self.getLr() * 1e6)
                     )
                     pbar.update(1)
 

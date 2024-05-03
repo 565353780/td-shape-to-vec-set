@@ -40,12 +40,7 @@ class EDMPrecond(torch.nn.Module):
     def emb_category(self, class_labels):
         return self.category_emb(class_labels).unsqueeze(1)
 
-    def forward(self, x, sigma, class_labels=None, force_fp32=False, **model_kwargs):
-        if class_labels.dtype == torch.float32:
-            cond_emb = class_labels
-        else:
-            cond_emb = self.category_emb(class_labels).unsqueeze(1)
-
+    def forwardCondition(self, x, sigma, condition, force_fp32=False, **model_kwargs):
         x = x.to(torch.float32)
         sigma = sigma.to(torch.float32).reshape(-1, 1, 1)
         dtype = (
@@ -60,11 +55,21 @@ class EDMPrecond(torch.nn.Module):
         c_noise = sigma.log() / 4
 
         F_x = self.model(
-            (c_in * x).to(dtype), c_noise.flatten(), cond=cond_emb, **model_kwargs
+            (c_in * x).to(dtype), c_noise.flatten(), cond=condition, **model_kwargs
         )
         assert F_x.dtype == dtype
         D_x = c_skip * x + c_out * F_x.to(torch.float32)
         return D_x
+
+    def forwardCategoryID(self, x, sigma, category_id, force_fp32=False, **model_kwargs):
+        condition = self.emb_category(category_id)
+        return self.forwardCondition(x, sigma, condition, force_fp32, **model_kwargs)
+
+    def forward(self, x, sigma, condition, force_fp32=False, **model_kwargs):
+        if condition.dtype == torch.float32:
+            return self.forwardCondition(x, sigma, condition, force_fp32, **model_kwargs)
+        else:
+            return self.forwardCategoryID(x, sigma, condition, force_fp32, **model_kwargs)
 
     def round_sigma(self, sigma):
         return torch.as_tensor(sigma)

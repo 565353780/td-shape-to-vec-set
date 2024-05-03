@@ -3,10 +3,8 @@ import torch
 import numpy as np
 from torch.utils.data import Dataset
 
-from td_shape_to_vec_set.Config.shapenet import CATEGORY_IDS
 
-
-class MashDataset(Dataset):
+class ImageEmbeddingDataset(Dataset):
     def __init__(
         self,
         dataset_root_folder_path: str,
@@ -14,6 +12,7 @@ class MashDataset(Dataset):
         self.dataset_root_folder_path = dataset_root_folder_path
 
         self.mash_folder_path = self.dataset_root_folder_path + "MashV3/"
+        self.image_embedding_folder_path = self.dataset_root_folder_path + "ImageEmbedding/"
 
         assert os.path.exists(self.mash_folder_path)
 
@@ -50,8 +49,14 @@ class MashDataset(Dataset):
                     if not os.path.exists(mash_file_path):
                         continue
 
+                    image_embedding_file_path = self.image_embedding_folder_path + dataset_name + '/' + \
+                        category + '/' + mash_filename
+
+                    if not os.path.exists(image_embedding_file_path):
+                        continue
+
                     path_dict['mash'] = mash_file_path
-                    path_dict['category_id'] = CATEGORY_IDS[category]
+                    path_dict['image_embedding'] = image_embedding_file_path
 
                     self.path_dict_list.append(path_dict)
         return
@@ -104,5 +109,11 @@ class MashDataset(Dataset):
 
         data['mash_params'] = mash_params.float()
 
-        data['category_id'] = path_dict['category_id']
+        image_embedding_file_path = path_dict['image_embedding']
+        image_embedding = np.load(image_embedding_file_path, allow_pickle=True).item()
+
+        for key, item in image_embedding.items():
+            image_embedding[key] = torch.from_numpy(item).float()
+
+        data['image_embedding'] = image_embedding
         return data
