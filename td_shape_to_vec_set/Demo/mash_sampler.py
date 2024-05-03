@@ -16,10 +16,11 @@ from td_shape_to_vec_set.Module.mash_sampler import MashSampler
 
 
 def demo():
-    output_folder_path = "./output/"
+    output_folder_path = "../Results/output-td/"
     model_folder_name_list = os.listdir(output_folder_path)
 
     valid_model_folder_name_list = []
+    valid_model_folder_name_list.append('2023')
     for model_folder_name in model_folder_name_list:
         if "2024" not in model_folder_name:
             continue
@@ -29,7 +30,9 @@ def demo():
         valid_model_folder_name_list.append(model_folder_name)
 
     valid_model_folder_name_list.sort()
-    model_file_path = "./output/" + valid_model_folder_name_list[-1] + "/model_best.pth"
+    model_folder_path = valid_model_folder_name_list[-1]
+    model_folder_path = 'pretrain-v5'
+    model_file_path = output_folder_path + model_folder_path + "/model_last.pth"
     device = "cpu"
 
     sample_num = 9
