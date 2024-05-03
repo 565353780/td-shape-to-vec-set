@@ -2,7 +2,6 @@ import os
 import torch
 import numpy as np
 import torch.distributed as dist
-from torch import nn
 from tqdm import tqdm
 from transformers import optimization
 from torch.utils.data import DataLoader
@@ -98,7 +97,7 @@ class MashTrainer(object):
             d_head=self.d_head,
             depth=self.depth,
         ).to(self.device)
-        self.model = DDP(self.model, device_ids=[self.device_id], find_unused_parameters=True)
+        self.model = DDP(self.model, device_ids=[self.device_id])
 
         mash_dataset = MashDataset(self.dataset_root_folder_path)
         image_embedding_dataset = ImageEmbeddingDataset(self.dataset_root_folder_path)
@@ -224,12 +223,8 @@ class MashTrainer(object):
 
         loss = loss / self.accumulation_steps
         loss.backward()
-        #nn.utils.clip_grad_norm_(self.model.parameters(), max_norm=1e2, norm_type=2)
 
         if self.step % self.accumulation_steps == 0:
-            #for params in self.model.module.parameters():
-            #    params.grad[torch.isnan(params.grad)] = 0.0
-
             self.optimizer.step()
 
             self.model.zero_grad()
@@ -246,14 +241,15 @@ class MashTrainer(object):
 
         self.model.zero_grad()
         for epoch in range(total_epoch):
-            print("[INFO][Trainer::train]")
-            print(
-                "\t start training, epoch : "
-                + str(epoch + 1)
-                + "/"
-                + str(total_epoch)
-                + "..."
-            )
+            if print_progress:
+                print("[INFO][Trainer::train]")
+                print(
+                    "\t start training, epoch : "
+                    + str(epoch + 1)
+                    + "/"
+                    + str(total_epoch)
+                    + "..."
+                )
             if print_progress:
                 pbar = tqdm(total=len(self.mash_dataloader))
             for data in self.mash_dataloader:
@@ -273,6 +269,9 @@ class MashTrainer(object):
 
                 if self.step % self.accumulation_steps == 0:
                     self.scheduler.step()
+
+            if print_progress:
+                pbar.close()
 
             self.saveModel("./output/" + self.log_folder_name + "/model_last.pth")
 
@@ -299,6 +298,9 @@ class MashTrainer(object):
 
                 if self.step % self.accumulation_steps == 0:
                     self.scheduler.step()
+
+            if print_progress:
+                pbar.close()
 
             self.saveModel("./output/" + self.log_folder_name + "/model_last.pth")
 

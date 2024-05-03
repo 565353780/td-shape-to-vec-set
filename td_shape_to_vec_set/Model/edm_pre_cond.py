@@ -61,15 +61,13 @@ class EDMPrecond(torch.nn.Module):
         D_x = c_skip * x + c_out * F_x.to(torch.float32)
         return D_x
 
-    def forwardCategoryID(self, x, sigma, category_id, force_fp32=False, **model_kwargs):
-        condition = self.emb_category(category_id)
-        return self.forwardCondition(x, sigma, condition, force_fp32, **model_kwargs)
-
     def forward(self, x, sigma, condition, force_fp32=False, **model_kwargs):
         if condition.dtype == torch.float32:
-            return self.forwardCondition(x, sigma, condition, force_fp32, **model_kwargs)
+            condition = condition + 0.0 * self.emb_category(torch.zeros([x.shape[0]], dtype=torch.long, device=x.device))
         else:
-            return self.forwardCategoryID(x, sigma, condition, force_fp32, **model_kwargs)
+            condition = self.emb_category(condition)
+
+        return self.forwardCondition(x, sigma, condition, force_fp32, **model_kwargs)
 
     def round_sigma(self, sigma):
         return torch.as_tensor(sigma)
