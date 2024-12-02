@@ -12,10 +12,10 @@ from torch.utils.tensorboard import SummaryWriter
 
 torch.set_num_threads(8)
 
-import util.lr_decay as lrd
-import util.misc as misc
+import ts_shape_to_vec_set.Method.misc as misc
+from ts_shape_to_vec_set.Optimizer.native_scaler import NativeScalerWithGradNormCount as NativeScaler
+
 from util.datasets import build_shape_surface_occupancy_dataset
-from util.misc import NativeScalerWithGradNormCount as NativeScaler
 
 import models_ae
 
@@ -179,11 +179,6 @@ def main(args):
         model = torch.nn.parallel.DistributedDataParallel(model, device_ids=[args.gpu], find_unused_parameters=False)
         model_without_ddp = model.module
 
-    # # build optimizer with layer-wise lr decay (lrd)
-    # param_groups = lrd.param_groups_lrd(model_without_ddp, args.weight_decay,
-    #     no_weight_decay_list=model_without_ddp.no_weight_decay(),
-    #     layer_decay=args.layer_decay
-    # )
     optimizer = torch.optim.AdamW(model_without_ddp.parameters(), lr=args.lr)
     loss_scaler = NativeScaler()
 
