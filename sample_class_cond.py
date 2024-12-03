@@ -4,6 +4,7 @@ import mcubes
 import trimesh
 import argparse
 import numpy as np
+from tqdm import trange
 
 from td_shape_to_vec_set.Model.models_ae import kl_d512_m512_l8
 from td_shape_to_vec_set.Model.edm_pre_cond import kl_d512_m512_l8_d24_edm
@@ -77,7 +78,7 @@ if __name__ == "__main__":
 
                 print(sampled_array.shape, sampled_array.max(), sampled_array.min(), sampled_array.mean(), sampled_array.std())
 
-                for j in range(sampled_array.shape[0]):
+                for j in trange(sampled_array.shape[0]):
 
                     logits = ae.decode(sampled_array[j:j+1], grid)
 
