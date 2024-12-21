@@ -8,7 +8,7 @@ from td_shape_to_vec_set.Module.mash_trainer import MashTrainer
 
 def demo():
     dataset_root_folder_path = os.environ['HOME'] + "/Dataset/"
-    batch_size = 10
+    batch_size = 20
     accum_iter = 10
     num_workers = 16
     # model_file_path = "../../output/20241220_17:55:07/total_model_last.pth".replace('../../', './')

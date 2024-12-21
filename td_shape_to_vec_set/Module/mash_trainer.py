@@ -13,6 +13,7 @@ from torch.utils.data import DataLoader, DistributedSampler
 
 from td_shape_to_vec_set.Loss.edm import EDMLoss
 from td_shape_to_vec_set.Dataset.mash import MashDataset
+from td_shape_to_vec_set.Dataset.single_shape import SingleShapeDataset
 from td_shape_to_vec_set.Model.edm_pre_cond import EDMPrecond
 from td_shape_to_vec_set.Method.path import createFileFolder, renameFile, removeFile
 from td_shape_to_vec_set.Method.time import getCurrentTime
@@ -86,6 +87,13 @@ class MashTrainer(object):
         self.dataloader_dict = {}
 
         if True:
+            mash_file_path = os.environ['HOME'] + '/Dataset/MashV4/ShapeNet/03636649/583a5a163e59e16da523f74182db8f2.npy'
+            self.dataloader_dict['single_shape'] =  {
+                'dataset': SingleShapeDataset(mash_file_path),
+                'repeat_num': 1,
+            }
+
+        if False:
             self.dataloader_dict['mash'] =  {
                 'dataset': MashDataset(dataset_root_folder_path, 'train'),
                 'repeat_num': 1,
@@ -268,7 +276,7 @@ class MashTrainer(object):
 
         sample_num = 3
         timestamp_num = 36
-        data = self.dataloader_dict['mash']['dataset'].__getitem__(0)
+        data = self.dataloader_dict['single_shape']['dataset'].__getitem__(0)
         gt_mash = data['mash_params']
         condition = data['category_id']
 
