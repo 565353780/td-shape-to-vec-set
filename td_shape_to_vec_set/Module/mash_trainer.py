@@ -1,6 +1,5 @@
 import os
 import torch
-import torchdiffeq
 import numpy as np
 import torch.distributed as dist
 from tqdm import tqdm, trange
@@ -8,7 +7,6 @@ from copy import deepcopy
 from typing import Union
 from torch.optim.adamw import AdamW
 from torch.utils.data import DataLoader
-from torch.amp import GradScaler, autocast
 from torch.optim.lr_scheduler import LambdaLR
 from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.utils.data import DataLoader, DistributedSampler
@@ -55,7 +53,6 @@ class MashTrainer(object):
         save_log_folder_path: Union[str, None] = None,
     ) -> None:
         self.local_rank = setup_distributed()
-        self.scaler = GradScaler()
 
         self.mash_channel = 400
         self.mask_degree = 3
@@ -270,7 +267,7 @@ class MashTrainer(object):
         model.eval()
 
         sample_num = 3
-        timestamp_num = 2
+        timestamp_num = 36
         data = self.dataloader_dict['mash']['dataset'].__getitem__(0)
         gt_mash = data['mash_params']
         condition = data['category_id']
@@ -291,19 +288,11 @@ class MashTrainer(object):
             print('\t condition type not valid!')
             return False
 
-        query_t = torch.linspace(0,1,timestamp_num).to(self.device)
-        query_t = torch.pow(query_t, 1.0 / 2.0)
-
-        traj = torchdiffeq.odeint(
-            lambda t, x: model.forward(x, condition_tensor, t),
-            x_init,
-            query_t,
-            atol=1e-4,
-            rtol=1e-4,
-            method="dopri5",
-        )
-
-        sampled_array = traj.cpu().numpy()[-1]
+        sampled_array = model.sample(
+            cond=condition_tensor,
+            batch_seeds=torch.arange(0, sample_num).to(self.device),
+            diffuse_steps=timestamp_num,
+        ).float()
 
         mash_model = Mash(
             self.mash_channel,
@@ -465,7 +454,7 @@ class MashTrainer(object):
                 if self.local_rank == 0:
                     if epoch_idx % 1 == 0:
                         self.sampleStep()
-                        self.sampleEMAStep()
+                        # self.sampleEMAStep()
 
                 epoch_idx += 1
 
