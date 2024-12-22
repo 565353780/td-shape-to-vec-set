@@ -204,6 +204,9 @@ class MashTrainer(object):
         return self.optim.state_dict()["param_groups"][0]["lr"]
 
     def warmup_lr(self, step: int) -> float:
+        if self.warm_step_num == 0:
+            return 1.0
+
         return min(step, self.warm_step_num) / self.warm_step_num
 
     def toEMADecay(self) -> float:
@@ -272,13 +275,17 @@ class MashTrainer(object):
         if self.local_rank != 0:
             return True
 
+        sample_num = 1
+        timestamp_num = 36
+        dataset = self.dataloader_dict['single_shape']['dataset']
+
         model.eval()
 
-        sample_num = 3
-        timestamp_num = 36
-        data = self.dataloader_dict['single_shape']['dataset'].__getitem__(0)
+        data = dataset.__getitem__(0)
         gt_mash = data['mash_params']
         condition = data['category_id']
+
+        gt_mash = dataset.normalizeInverse(gt_mash)
 
         print('[INFO][Trainer::sampleModelStep]')
         print("\t start diffuse", sample_num, "mashs....")
@@ -300,7 +307,7 @@ class MashTrainer(object):
             cond=condition_tensor,
             batch_seeds=torch.arange(0, sample_num).to(self.device),
             diffuse_steps=timestamp_num,
-        ).float()
+        ).float().cpu()
 
         mash_model = Mash(
             self.mash_channel,
@@ -335,6 +342,8 @@ class MashTrainer(object):
 
         for i in trange(sample_num):
             mash_params = sampled_array[i]
+
+            mash_params = dataset.normalizeInverse(mash_params)
 
             sh2d = 2 * self.mask_degree + 1
             ortho_poses = mash_params[:, :6]
