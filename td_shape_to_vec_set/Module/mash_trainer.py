@@ -86,14 +86,14 @@ class MashTrainer(object):
 
         self.dataloader_dict = {}
 
-        if True:
+        if False:
             mash_file_path = os.environ['HOME'] + '/Dataset/MashV4/ShapeNet/03636649/583a5a163e59e16da523f74182db8f2.npy'
             self.dataloader_dict['single_shape'] =  {
                 'dataset': SingleShapeDataset(mash_file_path),
                 'repeat_num': 1,
             }
 
-        if False:
+        if True:
             self.dataloader_dict['mash'] =  {
                 'dataset': MashDataset(dataset_root_folder_path, 'train'),
                 'repeat_num': 1,

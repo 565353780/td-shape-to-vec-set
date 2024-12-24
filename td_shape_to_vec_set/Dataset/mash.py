@@ -6,6 +6,8 @@ from torch.utils.data import Dataset
 
 from ma_sh.Method.io import loadMashFileParamsTensor
 
+from distribution_manage.Module.transformer import Transformer
+
 from td_shape_to_vec_set.Config.shapenet import CATEGORY_IDS
 
 
@@ -34,6 +36,8 @@ class MashDataset(Dataset):
                 # categories = ["02691156"]
                 categories = ["03001627"]
 
+            categories = ["03001627"]
+
             print("[INFO][MashDataset::__init__]")
             print("\t start load dataset [" + dataset_name + "]...")
             for category in tqdm(categories):
@@ -47,6 +51,8 @@ class MashDataset(Dataset):
                     mash_file_path = class_folder_path + mash_filename
 
                     self.paths_list.append([mash_file_path, category_id])
+
+        self.transformer = Transformer('../ma-sh/output/multi_linear_transformers.pkl')
         return
 
     def __len__(self):
@@ -63,6 +69,8 @@ class MashDataset(Dataset):
         mash_file_path, category_id = self.paths_list[index]
 
         mash_params = loadMashFileParamsTensor(mash_file_path, torch.float32, 'cpu')
+
+        mash_params = self.transformer.transform(mash_params, False)
 
         permute_idxs = np.random.permutation(mash_params.shape[0])
 
