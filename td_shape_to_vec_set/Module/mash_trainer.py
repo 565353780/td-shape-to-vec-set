@@ -275,9 +275,10 @@ class MashTrainer(object):
         if self.local_rank != 0:
             return True
 
-        sample_num = 1
+        sample_gt = False
+        sample_num = 3
         timestamp_num = 36
-        dataset = self.dataloader_dict['single_shape']['dataset']
+        dataset = self.dataloader_dict['mash']['dataset']
 
         model.eval()
 
@@ -285,7 +286,8 @@ class MashTrainer(object):
         gt_mash = data['mash_params']
         condition = data['category_id']
 
-        gt_mash = dataset.normalizeInverse(gt_mash)
+        if sample_gt:
+            gt_mash = dataset.normalizeInverse(gt_mash)
 
         print('[INFO][Trainer::sampleModelStep]')
         print("\t start diffuse", sample_num, "mashs....")
@@ -320,7 +322,7 @@ class MashTrainer(object):
             device=self.device,
         )
 
-        if not self.gt_sample_added_to_logger:
+        if sample_gt and not self.gt_sample_added_to_logger:
             sh2d = 2 * self.mask_degree + 1
             ortho_poses = gt_mash[:, :6]
             positions = gt_mash[:, 6:9]
@@ -471,7 +473,7 @@ class MashTrainer(object):
                 if self.local_rank == 0:
                     if epoch_idx % 1 == 0:
                         self.sampleStep()
-                        # self.sampleEMAStep()
+                        self.sampleEMAStep()
 
                 epoch_idx += 1
 

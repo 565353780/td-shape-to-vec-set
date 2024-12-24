@@ -55,6 +55,12 @@ class MashDataset(Dataset):
         self.transformer = Transformer('../ma-sh/output/multi_linear_transformers.pkl')
         return
 
+    def normalize(self, mash_params: torch.Tensor) -> torch.Tensor:
+        return self.transformer.transform(mash_params, False)
+
+    def normalizeInverse(self, mash_params: torch.Tensor) -> torch.Tensor:
+        return self.transformer.inverse_transform(mash_params, False)
+
     def __len__(self):
         return len(self.paths_list)
 
@@ -70,7 +76,7 @@ class MashDataset(Dataset):
 
         mash_params = loadMashFileParamsTensor(mash_file_path, torch.float32, 'cpu')
 
-        mash_params = self.transformer.transform(mash_params, False)
+        mash_params = self.normalize(mash_params)
 
         permute_idxs = np.random.permutation(mash_params.shape[0])
 
