@@ -240,8 +240,6 @@ class MashTrainer(object):
             for key in condition.keys():
                 condition[key] = condition[key].to(self.device)
 
-        self.model.train()
-
         loss = self.loss_func(self.model, mash_params, condition)
 
         loss_item = loss.clone().detach().cpu().numpy()
@@ -398,7 +396,6 @@ class MashTrainer(object):
 
         epoch_idx = 1
         while self.step < final_step or self.finetune_step_num < 0:
-            self.model.train()
 
             for data_name, dataloader_dict in self.dataloader_dict.items():
                 dataloader_dict['sampler'].set_epoch(epoch_idx)
