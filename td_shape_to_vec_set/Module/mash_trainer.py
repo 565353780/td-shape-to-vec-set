@@ -79,6 +79,8 @@ class MashTrainer(object):
         self.save_log_folder_path = save_log_folder_path
 
         self.step = 0
+        self.epoch = 0
+        self.loss_dict_list = []
 
         self.logger = None
         if self.local_rank == 0:
@@ -123,7 +125,20 @@ class MashTrainer(object):
                 'repeat_num': 10,
             }
 
+        if True:
+            self.dataloader_dict['eval'] =  {
+                'dataset': MashDataset(dataset_root_folder_path, 'eval'),
+            }
+
         for key, item in self.dataloader_dict.items():
+            if key == 'eval':
+                self.dataloader_dict[key]['dataloader'] = DataLoader(
+                    item['dataset'],
+                    batch_size=batch_size,
+                    num_workers=num_workers,
+                )
+                continue
+
             self.dataloader_dict[key]['sampler'] = DistributedSampler(item['dataset'])
             self.dataloader_dict[key]['dataloader'] = DataLoader(
                 item['dataset'],
@@ -198,6 +213,9 @@ class MashTrainer(object):
         if 'step' in model_state_dict.keys():
             self.step = model_state_dict['step']
 
+        print('[INFO][Trainer::loadModel]')
+        print('\t model loaded from:', model_file_path)
+
         return True
 
     def getLr(self) -> float:
@@ -267,6 +285,35 @@ class MashTrainer(object):
 
         return loss_dict
 
+    @torch.no_grad()
+    def evalStep(
+        self,
+        data: dict,
+    ) -> dict:
+        self.model.eval()
+
+        mash_params = data['mash_params'].to(self.device)
+        condition = data['condition']
+        if isinstance(condition, torch.Tensor):
+            condition = condition.to(self.device)
+        else:
+            for key in condition.keys():
+                condition[key] = condition[key].to(self.device)
+
+        model_loss = self.loss_func(self.model.module, mash_params, condition, True)
+
+        model_loss_item = model_loss.clone().detach().cpu().numpy()
+
+        ema_loss = self.loss_func(self.ema_model, mash_params, condition, True)
+
+        ema_loss_item = ema_loss.clone().detach().cpu().numpy()
+
+        loss_dict = {
+            "ModelLoss": model_loss_item,
+            "EMALoss": ema_loss_item,
+        }
+
+        return loss_dict
 
     @torch.no_grad()
     def sampleModelStep(self, model: torch.nn.Module, model_name: str) -> bool:
@@ -275,7 +322,7 @@ class MashTrainer(object):
 
         sample_gt = False
         sample_num = 3
-        timestamp_num = 36
+        timestamp_num = 18
         dataset = self.dataloader_dict['mash']['dataset']
 
         model.eval()
@@ -307,7 +354,7 @@ class MashTrainer(object):
             cond=condition_tensor,
             batch_seeds=torch.arange(0, sample_num).to(self.device),
             diffuse_steps=timestamp_num,
-        ).float().cpu()
+        ).cpu().float()
 
         mash_model = Mash(
             self.mash_channel,
@@ -385,6 +432,113 @@ class MashTrainer(object):
         print('\t valid condition type not found!')
         return None
 
+    def trainEpoch(self, data_name: str) -> bool:
+        if data_name not in self.dataloader_dict.keys():
+            print('[ERROR][Trainer::trainEpoch]')
+            print('\t data not exist!')
+            print('\t data_name:', data_name)
+            return False
+
+        dataloader_dict = self.dataloader_dict[data_name]
+        dataloader_dict['sampler'].set_epoch(self.epoch)
+
+        dataloader = dataloader_dict['dataloader']
+
+        if self.local_rank == 0:
+            pbar = tqdm(total=len(dataloader))
+        for data in dataloader:
+            condition = self.toCondition(data)
+            if condition is None:
+                print('[ERROR][Trainer::trainEpoch]')
+                print('\t toCondition failed!')
+                continue
+
+            conditional_data = {
+                'mash_params': data['mash_params'],
+                'condition': condition,
+            }
+
+            train_loss_dict = self.trainStep(conditional_data)
+
+            self.loss_dict_list.append(train_loss_dict)
+
+            lr = self.getLr()
+
+            if (self.step + 1) % self.accum_iter == 0 and self.local_rank == 0:
+                for key in train_loss_dict.keys():
+                    value = 0
+                    for i in range(len(self.loss_dict_list)):
+                        value += self.loss_dict_list[i][key]
+                    value /= len(self.loss_dict_list)
+                    self.logger.addScalar("Train/" + key, value, self.step)
+                self.logger.addScalar("Train/Lr", lr, self.step)
+
+                if self.ema_loss is None:
+                    self.ema_loss = train_loss_dict["Loss"]
+                else:
+                    ema_decay = self.toEMADecay()
+
+                    self.ema_loss = self.ema_loss * ema_decay + train_loss_dict["Loss"] * (1 - ema_decay)
+                self.logger.addScalar("Train/EMALoss", self.ema_loss, self.step)
+
+                self.loss_dict_list = []
+
+            if self.local_rank == 0:
+                pbar.set_description(
+                    "EPOCH %d LOSS %.6f LR %.4f"
+                    % (
+                        self.epoch,
+                        train_loss_dict["Loss"],
+                        self.getLr() / self.lr,
+                    )
+                )
+
+            self.step += 1
+
+            if self.local_rank == 0:
+                pbar.update(1)
+
+        if self.local_rank == 0:
+            pbar.close()
+
+        self.epoch += 1
+
+        return True
+
+    @torch.no_grad()
+    def evalEpoch(self) -> bool:
+        if self.local_rank != 0:
+            return True
+
+        if 'eval' not in self.dataloader_dict.keys():
+            return True
+
+        print('[INFO][Trainer::evalEpoch]')
+        print('\t start evaluating ...')
+
+        dataloader = self.dataloader_dict['eval']['dataloader']
+
+        for data in dataloader:
+            condition = self.toCondition(data)
+            if condition is None:
+                print('[ERROR][Trainer::evalEpoch]')
+                print('\t toCondition failed!')
+                continue
+
+            conditional_data = {
+                'mash_params': data['mash_params'],
+                'condition': condition,
+            }
+
+            eval_loss_dict = self.evalStep(conditional_data)
+
+            for key, item in eval_loss_dict.items():
+                self.logger.addScalar("Eval/" + key, item, self.step)
+
+            break
+
+        return True
+
     def train(self) -> bool:
         final_step = self.step + self.finetune_step_num
 
@@ -392,87 +546,34 @@ class MashTrainer(object):
             print("[INFO][Trainer::train]")
             print("\t start training ...")
 
-        loss_dict_list = []
-
-        epoch_idx = 1
         while self.step < final_step or self.finetune_step_num < 0:
 
-            for data_name, dataloader_dict in self.dataloader_dict.items():
-                dataloader_dict['sampler'].set_epoch(epoch_idx)
+            for data_name in self.dataloader_dict.keys():
+                if data_name == 'eval':
+                    continue
 
-                dataloader = dataloader_dict['dataloader']
-                repeat_num = dataloader_dict['repeat_num']
+                repeat_num = self.dataloader_dict[data_name]['repeat_num']
 
                 for i in range(repeat_num):
                     if self.local_rank == 0:
                         print('[INFO][Trainer::train]')
                         print('\t start training on dataset [', data_name, '] ,', i + 1, '/', repeat_num, '...')
 
-                    if self.local_rank == 0:
-                        pbar = tqdm(total=len(dataloader))
-                    for data in dataloader:
-                        condition = self.toCondition(data)
-                        if condition is None:
-                            print('[ERROR][Trainer::train]')
-                            print('\t toCondition failed!')
-                            continue
+                    if not self.trainEpoch(data_name):
+                        print('[ERROR][Trainer::train]')
+                        print('\t trainEpoch failed!')
+                        return False
 
-                        conditional_data = {
-                            'mash_params': data['mash_params'],
-                            'condition': condition,
-                        }
-
-                        train_loss_dict = self.trainStep(conditional_data)
-
-                        loss_dict_list.append(train_loss_dict)
-
-                        lr = self.getLr()
-
-                        if (self.step + 1) % self.accum_iter == 0 and self.local_rank == 0:
-                            for key in train_loss_dict.keys():
-                                value = 0
-                                for i in range(len(loss_dict_list)):
-                                    value += loss_dict_list[i][key]
-                                value /= len(loss_dict_list)
-                                self.logger.addScalar("Train/" + key, value, self.step)
-                            self.logger.addScalar("Train/Lr", lr, self.step)
-
-                            if self.ema_loss is None:
-                                self.ema_loss = train_loss_dict["Loss"]
-                            else:
-                                ema_decay = self.toEMADecay()
-
-                                self.ema_loss = self.ema_loss * ema_decay + train_loss_dict["Loss"] * (1 - ema_decay)
-                            self.logger.addScalar("Train/EMALoss", self.ema_loss, self.step)
-
-                            loss_dict_list = []
-
-                        if self.local_rank == 0:
-                            pbar.set_description(
-                                "EPOCH %d LOSS %.6f LR %.4f"
-                                % (
-                                    epoch_idx,
-                                    train_loss_dict["Loss"],
-                                    self.getLr() / self.lr,
-                                )
-                            )
-
-                        self.step += 1
-                        if self.local_rank == 0:
-                            pbar.update(1)
-
-                    if self.local_rank == 0:
-                        pbar.close()
-
-                if self.local_rank == 0:
                     self.autoSaveModel("total")
 
-                if self.local_rank == 0:
-                    if epoch_idx % 1 == 0:
+                    if not self.evalEpoch():
+                        print('[ERROR][Trainer::train]')
+                        print('\t evalEpoch failed!')
+                        return False
+
+                    if self.epoch % 1 == 0:
                         self.sampleStep()
                         self.sampleEMAStep()
-
-                epoch_idx += 1
 
         return True
 
@@ -491,6 +592,9 @@ class MashTrainer(object):
         return True
 
     def autoSaveModel(self, name: str) -> bool:
+        if self.local_rank != 0:
+            return True
+
         if self.save_result_folder_path is None:
             return False
 

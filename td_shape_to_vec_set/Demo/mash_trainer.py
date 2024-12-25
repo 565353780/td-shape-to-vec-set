@@ -8,12 +8,12 @@ from td_shape_to_vec_set.Module.mash_trainer import MashTrainer
 
 
 def demo():
-    dataset_root_folder_path = os.environ['HOME'] + "/Dataset/"
-    batch_size = 20
+    dataset_root_folder_path = os.environ['HOME'] + "/chLi/Dataset/"
+    batch_size = 16
     accum_iter = 10
     num_workers = 16
     model_file_path = None
-    # model_file_path = "../../output/20241223_13:19:00/total_model_last.pth".replace('../../', './')
+    model_file_path = "../../output/20241225_15:15:14/total_model_last.pth".replace('../../', './')
     device = "auto"
     warm_step_num = 2000
     finetune_step_num = -1

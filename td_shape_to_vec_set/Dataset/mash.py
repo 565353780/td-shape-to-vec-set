@@ -31,11 +31,10 @@ class MashDataset(Dataset):
             dataset_folder_path = self.mash_folder_path + dataset_name + "/"
 
             categories = os.listdir(dataset_folder_path)
-            # FIXME: for detect test only
-            if self.split == "test":
-                # categories = ["02691156"]
+            if self.split != "train":
                 categories = ["03001627"]
 
+            #FIXME: for fast training test only
             categories = ["03001627"]
 
             print("[INFO][MashDataset::__init__]")
