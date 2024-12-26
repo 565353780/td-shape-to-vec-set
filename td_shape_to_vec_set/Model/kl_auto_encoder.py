@@ -61,7 +61,7 @@ class KLAutoEncoder(nn.Module):
         self.layers = nn.ModuleList([])
         cache_args = {"_cache": weight_tie_layers}
 
-        for i in range(depth):
+        for _ in range(depth):
             self.layers.append(
                 nn.ModuleList(
                     [get_latent_attn(**cache_args), get_latent_ff(**cache_args)]

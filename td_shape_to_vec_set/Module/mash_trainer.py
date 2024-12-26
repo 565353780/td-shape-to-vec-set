@@ -43,7 +43,7 @@ class MashTrainer(object):
         accum_iter: int = 10,
         num_workers: int = 16,
         model_file_path: Union[str, None] = None,
-        device: str = "cuda:0",
+        device: str = "auto",
         warm_step_num: int = 2000,
         finetune_step_num: int = -1,
         lr: float = 2e-4,
@@ -198,7 +198,7 @@ class MashTrainer(object):
 
     def loadModel(self, model_file_path: str) -> bool:
         if not os.path.exists(model_file_path):
-            print("[ERROR][Trainer::loadModel]")
+            print("[ERROR][MashTrainer::loadModel]")
             print("\t model file not exist!")
             print("\t model_file_path:", model_file_path)
             return False
@@ -213,7 +213,7 @@ class MashTrainer(object):
         if 'step' in model_state_dict.keys():
             self.step = model_state_dict['step']
 
-        print('[INFO][Trainer::loadModel]')
+        print('[INFO][MashTrainer::loadModel]')
         print('\t model loaded from:', model_file_path)
 
         return True
@@ -267,7 +267,7 @@ class MashTrainer(object):
         accum_loss.backward()
 
         if not check_and_replace_nan_in_grad(self.model):
-            print('[ERROR][Trainer::trainStep]')
+            print('[ERROR][MashTrainer::trainStep]')
             print('\t check_and_replace_nan_in_grad failed!')
             exit()
 
