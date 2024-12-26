@@ -6,9 +6,8 @@ from torch.utils.data import Dataset
 
 from ma_sh.Method.io import loadMashFileParamsTensor
 
-from distribution_manage.Module.transformer import Transformer
-
 from td_shape_to_vec_set.Config.shapenet import CATEGORY_IDS
+from td_shape_to_vec_set.Config.transformer import getTransformer
 
 
 class MashDataset(Dataset):
@@ -51,7 +50,9 @@ class MashDataset(Dataset):
 
                     self.paths_list.append([mash_file_path, category_id])
 
-        self.transformer = Transformer('../ma-sh/output/multi_linear_transformers.pkl')
+
+        self.transformer = getTransformer('ShapeNet_03001627')
+        assert self.transformer is not None
         return
 
     def normalize(self, mash_params: torch.Tensor) -> torch.Tensor:

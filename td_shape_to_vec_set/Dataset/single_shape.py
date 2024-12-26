@@ -3,11 +3,11 @@ import torch
 import numpy as np
 from torch.utils.data import Dataset
 
+from ma_sh.Config.custom_path import toDatasetRootPath
 from ma_sh.Method.io import loadMashFileParamsTensor
 
-from distribution_manage.Module.transformer import Transformer
-
 from td_shape_to_vec_set.Config.shapenet import CATEGORY_IDS
+from td_shape_to_vec_set.Config.transformer import getTransformer
 
 
 class SingleShapeDataset(Dataset):
@@ -21,7 +21,11 @@ class SingleShapeDataset(Dataset):
 
         self.mash_params = loadMashFileParamsTensor(mash_file_path, torch.float32, 'cpu')
 
-        self.transformer = Transformer('../ma-sh/output/multi_linear_transformers.pkl')
+        dataset_root_folder_path = toDatasetRootPath()
+        assert dataset_root_folder_path is not None
+
+        self.transformer = getTransformer('ShapeNet_03001627')
+        assert self.transformer is not None
 
         self.mash_params = self.normalize(self.mash_params)
         return

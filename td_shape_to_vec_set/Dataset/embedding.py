@@ -6,7 +6,7 @@ from torch.utils.data import Dataset
 
 from ma_sh.Method.io import loadMashFileParamsTensor
 
-from distribution_manage.Module.transformer import Transformer
+from td_shape_to_vec_set.Config.transformer import getTransformer
 
 
 class EmbeddingDataset(Dataset):
@@ -69,7 +69,8 @@ class EmbeddingDataset(Dataset):
 
                 self.path_dict_list.append(path_dict)
 
-        self.transformer = Transformer('../ma-sh/output/multi_linear_transformers.pkl')
+        self.transformer = getTransformer('ShapeNet_03001627')
+        assert self.transformer is not None
         return
 
     def normalize(self, mash_params: torch.Tensor) -> torch.Tensor:
