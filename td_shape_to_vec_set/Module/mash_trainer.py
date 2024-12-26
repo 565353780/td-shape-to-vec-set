@@ -317,9 +317,6 @@ class MashTrainer(object):
 
     @torch.no_grad()
     def sampleModelStep(self, model: torch.nn.Module, model_name: str) -> bool:
-        if self.local_rank != 0:
-            return True
-
         sample_gt = False
         sample_num = 3
         timestamp_num = 18
@@ -413,11 +410,17 @@ class MashTrainer(object):
 
     @torch.no_grad()
     def sampleStep(self) -> bool:
+        if self.local_rank != 0:
+            return True
+
         self.sampleModelStep(self.model.module, 'Model')
         return True
 
     @torch.no_grad()
     def sampleEMAStep(self) -> bool:
+        if self.local_rank != 0:
+            return True
+
         self.sampleModelStep(self.ema_model, 'EMA')
         return True
 
@@ -571,7 +574,7 @@ class MashTrainer(object):
                         print('\t evalEpoch failed!')
                         return False
 
-                    if self.epoch % 1 == 0:
+                    if self.epoch % 50 == 0:
                         self.sampleStep()
                         self.sampleEMAStep()
 
