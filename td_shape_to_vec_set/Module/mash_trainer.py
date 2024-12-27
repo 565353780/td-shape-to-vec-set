@@ -203,15 +203,17 @@ class MashTrainer(object):
             print("\t model_file_path:", model_file_path)
             return False
 
-        model_state_dict = torch.load(model_file_path)
+        model_state_dict = torch.load(model_file_path, map_location='cpu')
         if 'model' in model_state_dict.keys():
             self.model.module.load_state_dict(model_state_dict["model"])
-        if 'ema_model' in model_state_dict.keys():
-            self.ema_model.load_state_dict(model_state_dict["ema_model"])
-        if 'ema_loss' in model_state_dict.keys():
-            self.ema_loss = model_state_dict['ema_loss']
         if 'step' in model_state_dict.keys():
             self.step = model_state_dict['step']
+
+        if self.local_rank == 0:
+            if 'ema_model' in model_state_dict.keys():
+                self.ema_model.load_state_dict(model_state_dict["ema_model"])
+            if 'ema_loss' in model_state_dict.keys():
+                self.ema_loss = model_state_dict['ema_loss']
 
         print('[INFO][MashTrainer::loadModel]')
         print('\t model loaded from:', model_file_path)
