@@ -8,7 +8,7 @@ from typing import Union
 from torch.optim.adamw import AdamW
 from torch.optim.lr_scheduler import LambdaLR
 from torch.nn.parallel import DistributedDataParallel as DDP
-from torch.utils.data import DistributedSampler
+from torch.utils.data import DataLoader, DistributedSampler
 
 from td_shape_to_vec_set.Loss.edm import EDMLoss
 from td_shape_to_vec_set.Dataset.mash import MashDataset
@@ -16,7 +16,6 @@ from td_shape_to_vec_set.Dataset.single_shape import SingleShapeDataset
 from td_shape_to_vec_set.Model.edm_pre_cond import EDMPrecond
 from td_shape_to_vec_set.Method.path import createFileFolder, renameFile, removeFile
 from td_shape_to_vec_set.Method.time import getCurrentTime
-from td_shape_to_vec_set.Module.dataloader_x import DataLoaderX
 from td_shape_to_vec_set.Module.logger import Logger
 
 from ma_sh.Model.mash import Mash
@@ -132,7 +131,7 @@ class MashTrainer(object):
 
         for key, item in self.dataloader_dict.items():
             if key == 'eval':
-                self.dataloader_dict[key]['dataloader'] = DataLoaderX(
+                self.dataloader_dict[key]['dataloader'] = DataLoader(
                     item['dataset'],
                     batch_size=batch_size,
                     num_workers=num_workers,
@@ -140,7 +139,7 @@ class MashTrainer(object):
                 continue
 
             self.dataloader_dict[key]['sampler'] = DistributedSampler(item['dataset'])
-            self.dataloader_dict[key]['dataloader'] = DataLoaderX(
+            self.dataloader_dict[key]['dataloader'] = DataLoader(
                 item['dataset'],
                 sampler=self.dataloader_dict[key]['sampler'],
                 batch_size=batch_size,
