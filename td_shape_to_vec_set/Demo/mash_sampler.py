@@ -9,16 +9,25 @@ from math import sqrt, ceil
 
 from td_shape_to_vec_set.Method.time import getCurrentTime
 from td_shape_to_vec_set.Module.mash_sampler import MashSampler
+from td_shape_to_vec_set.Config.transformer import getTransformer
 
 
 def demo():
     model_file_path = "../../output/shapenet_03001627_v1/total_model_last.pth".replace('../.', '')
+    transformer_id = 'ShapeNet_03001627'
     use_ema = True
     device = "cpu"
 
     sample_num = 1
     condition = 18
     diffuse_steps = 18
+
+    timestamp = getCurrentTime()
+    save_folder_path = './output/sample/' + timestamp + '/'
+    os.makedirs(save_folder_path + '/pcd/', exist_ok=True)
+
+    transformer = getTransformer(transformer_id)
+    assert transformer is not None
 
     print(model_file_path)
     mash_sampler = MashSampler(model_file_path, use_ema, device)
@@ -34,12 +43,10 @@ def demo():
 
     mash_model = mash_sampler.toInitialMashModel()
 
-    timestamp = getCurrentTime()
-    save_folder_path = './output/' + timestamp + '/'
-    os.makedirs(save_folder_path + '/pcd/', exist_ok=True)
-
     for i in tqdm(range(sample_num)):
         mash_params = sampled_array[i]
+
+        mash_params = transformer.inverse_transform(mash_params)
 
         sh2d = 2 * mash_sampler.mask_degree + 1
         ortho_poses = mash_params[:, :6]

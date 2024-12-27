@@ -95,9 +95,6 @@ def edm_sampler(
         [net.round_sigma(t_steps), torch.zeros_like(t_steps[:1])]
     )  # t_N = 0
 
-    print(t_steps)
-    exit()
-
     # Main sampling loop.
     x_next = latents.to(torch.float64) * t_steps[0]
     # 0, ..., N-1
