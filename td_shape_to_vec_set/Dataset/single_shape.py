@@ -5,9 +5,9 @@ from torch.utils.data import Dataset
 
 from ma_sh.Config.custom_path import toDatasetRootPath
 from ma_sh.Method.io import loadMashFileParamsTensor
+from ma_sh.Method.transformer import getTransformer
 
 from td_shape_to_vec_set.Config.shapenet import CATEGORY_IDS
-from td_shape_to_vec_set.Config.transformer import getTransformer
 
 
 class SingleShapeDataset(Dataset):
