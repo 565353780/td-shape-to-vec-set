@@ -36,7 +36,7 @@ def demo():
 
     print("start diffuse", sample_num, "mashs....")
     if sample_category:
-        sampled_array = mash_sampler.sample(sample_num, condition, diffuse_steps)[-1]
+        sampled_array = mash_sampler.sample(sample_num, condition, diffuse_steps)
     elif sample_fixed_anchors:
         mash_file_path_list = [
             '../ma-sh/output/combined_mash.npy',
