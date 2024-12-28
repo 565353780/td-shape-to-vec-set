@@ -65,7 +65,9 @@ def toMaskedNoise(
 
     fixed_latents = latents[fixed_mask]
 
-    fixed_x = fixed_latents + randn_like(fixed_latents) * t
+    noise = randn_like(latents) * t
+
+    fixed_x = fixed_latents + noise[fixed_mask]
 
     x[fixed_mask] = fixed_x
 
@@ -116,6 +118,8 @@ def edm_sampler(
 ) -> list:
     x_list = []
 
+    latents = latents.to(torch.float64)
+
     # Adjust noise levels based on what's supported by the network.
     sigma_min = max(sigma_min, net.sigma_min)
     sigma_max = min(sigma_max, net.sigma_max)
@@ -123,7 +127,7 @@ def edm_sampler(
     t_steps = toTSteps(num_steps, sigma_min, sigma_max, rho).to(latents.device)
 
     # Main sampling loop.
-    x_next = latents.to(torch.float64) * t_steps[0]
+    x_next = latents * t_steps[0]
 
     x_list.append(x_next.detach().clone())
 

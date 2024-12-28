@@ -9,7 +9,6 @@ from math import sqrt, ceil
 
 from td_shape_to_vec_set.Method.time import getCurrentTime
 from td_shape_to_vec_set.Module.mash_sampler import MashSampler
-from td_shape_to_vec_set.Config.transformer import getTransformer
 
 
 def demo():
@@ -26,14 +25,17 @@ def demo():
     save_folder_path = './output/sample/' + timestamp + '/'
     os.makedirs(save_folder_path + '/pcd/', exist_ok=True)
 
-    transformer = getTransformer(transformer_id)
-    assert transformer is not None
 
     print(model_file_path)
-    mash_sampler = MashSampler(model_file_path, use_ema, device)
+    mash_sampler = MashSampler(model_file_path, use_ema, device, transformer_id)
 
     print("start diffuse", sample_num, "mashs....")
-    sampled_array = mash_sampler.sample(sample_num, condition, diffuse_steps)[-1]
+    # sampled_array = mash_sampler.sample(sample_num, condition, diffuse_steps)[-1]
+
+    mash_file_path_list = [
+        '/home/chli/github/ASDF/ma-sh/output/combined_mash.npy',
+    ]
+    sampled_array = mash_sampler.sampleWithFixedAnchors(mash_file_path_list, sample_num, condition, diffuse_steps)[-1]
 
     object_dist = [2, 0, 2]
 
@@ -46,7 +48,7 @@ def demo():
     for i in tqdm(range(sample_num)):
         mash_params = sampled_array[i]
 
-        mash_params = transformer.inverse_transform(mash_params)
+        mash_params = mash_sampler.transformer.inverse_transform(mash_params)
 
         sh2d = 2 * mash_sampler.mask_degree + 1
         ortho_poses = mash_params[:, :6]

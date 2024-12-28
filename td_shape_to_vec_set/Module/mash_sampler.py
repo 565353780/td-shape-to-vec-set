@@ -9,6 +9,7 @@ from ma_sh.Model.mash import Mash
 from ma_sh.Module.o3d_viewer import O3DViewer
 from ma_sh.Module.local_editor import LocalEditor
 
+from td_shape_to_vec_set.Config.transformer import getTransformer
 from td_shape_to_vec_set.Model.edm_pre_cond import EDMPrecond
 
 
@@ -17,7 +18,8 @@ class MashSampler(object):
         self,
         model_file_path: Union[str, None] = None,
         use_ema: bool = True,
-        device: str = "cpu"
+        device: str = "cpu",
+        transformer_id: str = 'Objaverse_82K',
     ) -> None:
         self.mash_channel = 400
         self.mask_degree = 3
@@ -44,6 +46,9 @@ class MashSampler(object):
 
         if model_file_path is not None:
             self.loadModel(model_file_path)
+
+        self.transformer = getTransformer(transformer_id)
+        assert self.transformer is not None
         return
 
     def toInitialMashModel(self) -> Mash:
@@ -179,3 +184,79 @@ class MashSampler(object):
 
         o3d_viewer.run()
         return True
+
+    @torch.no_grad()
+    def sampleWithFixedAnchors(
+        self,
+        mash_file_path_list: list,
+        sample_num: int,
+        condition: Union[int, np.ndarray] = 0,
+        diffuse_steps: int = 18,
+    ) -> list:
+        self.model.eval()
+
+        if isinstance(condition, int):
+            condition_tensor = torch.ones([sample_num]).long().to(self.device) * condition
+        elif isinstance(condition, np.ndarray):
+            # condition dim: 1x768
+            condition_tensor = torch.from_numpy(condition).type(torch.float32).to(self.device).repeat(sample_num, 1)
+        else:
+            print('[ERROR][Sampler::sample]')
+            print('\t condition type not valid!')
+            return np.ndarray()
+
+        '''
+        local_editor = LocalEditor(self.device)
+        if not local_editor.loadMashFiles(mash_file_path_list):
+            print('[ERROR][Sampler::sampleWithFixedAnchors]')
+            print('\t loadMashFiles failed!')
+            return None
+
+        combined_mash = local_editor.toCombinedMash()
+        if combined_mash is None:
+            print('[ERROR][Sampler::sampleWithFixedAnchors]')
+            print('\t toCombinedMash failed!')
+            return None
+        '''
+        combined_mash = Mash.fromParamsFile(
+            mash_file_path_list[0],
+            10,
+            10,
+            1.0,
+            torch.int64,
+            torch.float64,
+            self.device,
+        )
+
+        fixed_ortho_poses = combined_mash.toOrtho6DPoses().detach().clone()
+        fixed_positions = combined_mash.positions.detach().clone()
+        fixed_mask_params = combined_mash.mask_params.detach().clone()
+        fixed_sh_params = combined_mash.sh_params.detach().clone()
+
+        fixed_x_init = torch.cat((
+            fixed_ortho_poses,
+            fixed_positions,
+            fixed_mask_params,
+            fixed_sh_params,
+        ), dim=1)
+
+        fixed_x_init = self.transformer.transform(fixed_x_init)
+
+        fixed_x_init = fixed_x_init.view(1, combined_mash.anchor_num, 25).expand(condition_tensor.shape[0], combined_mash.anchor_num, 25)
+
+        random_x_init = torch.randn(condition_tensor.shape[0], 400 - combined_mash.anchor_num, 25, device=self.device)
+
+        x_init = torch.cat((fixed_x_init, random_x_init), dim=1)
+
+        fixed_mask = torch.zeros_like(x_init, dtype=torch.bool)
+        fixed_mask[:, :combined_mash.anchor_num, :] = True
+
+        sampled_array = self.model.sample(
+            cond=condition_tensor,
+            batch_seeds=torch.arange(0, sample_num).to(self.device),
+            diffuse_steps=diffuse_steps,
+            latents=x_init,
+            fixed_mask=fixed_mask,
+        )
+
+        return sampled_array

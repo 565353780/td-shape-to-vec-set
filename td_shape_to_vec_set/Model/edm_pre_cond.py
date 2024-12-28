@@ -1,5 +1,6 @@
 import torch
 import torch.nn as nn
+from typing import Union
 
 from td_shape_to_vec_set.Model.Transformer.latent_array import LatentArrayTransformer
 from td_shape_to_vec_set.Method.sample import edm_sampler
@@ -78,6 +79,8 @@ class EDMPrecond(torch.nn.Module):
         cond,
         batch_seeds=None,
         diffuse_steps:int = 18,
+        latents: Union[torch.Tensor, None] = None,
+        fixed_mask: Union[torch.Tensor, None] = None,
     ) -> list:
         if cond is not None:
             batch_size, device = *cond.shape, cond.device
@@ -89,9 +92,10 @@ class EDMPrecond(torch.nn.Module):
             batch_size = batch_seeds.shape[0]
 
         rnd = StackedRandomGenerator(device, batch_seeds)
-        latents = rnd.randn([batch_size, self.n_latents, self.channels], device=device)
+        if latents is None:
+            latents = rnd.randn([batch_size, self.n_latents, self.channels], device=device)
 
-        return edm_sampler(self, latents, cond, randn_like=rnd.randn_like, num_steps=diffuse_steps)
+        return edm_sampler(self, latents, cond, randn_like=rnd.randn_like, num_steps=diffuse_steps, fixed_mask=fixed_mask)
 
 
 def kl_d512_m512_l8_edm():
