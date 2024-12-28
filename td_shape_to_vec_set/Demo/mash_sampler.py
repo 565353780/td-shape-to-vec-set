@@ -20,7 +20,9 @@ def demo():
     sample_num = 9
     condition_name = '03001627'
     diffuse_steps = 18
-    save_results_only = False
+    sample_category = True
+    sample_fixed_anchors = False
+    save_results_only = True
 
     condition = CATEGORY_IDS[condition_name]
     condition_info = 'category/' + condition_name
@@ -32,12 +34,15 @@ def demo():
     mash_sampler = MashSampler(model_file_path, use_ema, device, transformer_id)
 
     print("start diffuse", sample_num, "mashs....")
-    # sampled_array = mash_sampler.sample(sample_num, condition, diffuse_steps)[-1]
-
-    mash_file_path_list = [
-        '../ma-sh/output/combined_mash.npy',
-    ]
-    sampled_array = mash_sampler.sampleWithFixedAnchors(mash_file_path_list, sample_num, condition, diffuse_steps)
+    if sample_category:
+        sampled_array = mash_sampler.sample(sample_num, condition, diffuse_steps)[-1]
+    elif sample_fixed_anchors:
+        mash_file_path_list = [
+            '../ma-sh/output/combined_mash.npy',
+        ]
+        sampled_array = mash_sampler.sampleWithFixedAnchors(mash_file_path_list, sample_num, condition, diffuse_steps)
+    else:
+        return True
 
     object_dist = [0, 0, 0]
 
@@ -58,7 +63,6 @@ def demo():
 
         print("start create mash files,", j + 1, '/', len(sampled_array), "...")
         for i in tqdm(range(sample_num)):
-
             mash_params = sampled_array[j][i]
 
             mash_params = mash_sampler.transformer.inverse_transform(mash_params)
