@@ -6,10 +6,10 @@ from tqdm import tqdm
 from typing import Union
 
 from ma_sh.Model.mash import Mash
+from ma_sh.Method.transformer import getTransformer
 from ma_sh.Module.o3d_viewer import O3DViewer
 from ma_sh.Module.local_editor import LocalEditor
 
-from td_shape_to_vec_set.Config.transformer import getTransformer
 from td_shape_to_vec_set.Model.edm_pre_cond import EDMPrecond
 
 

@@ -1,6 +1,4 @@
 import sys
-
-from td_shape_to_vec_set.Config.shapenet import CATEGORY_IDS
 sys.path.append("../ma-sh/")
 sys.path.append('../distribution-manage/')
 
@@ -8,9 +6,12 @@ import os
 from tqdm import tqdm
 from math import sqrt, ceil
 
+from td_shape_to_vec_set.Config.shapenet import CATEGORY_IDS
 from td_shape_to_vec_set.Method.time import getCurrentTime
 from td_shape_to_vec_set.Module.mash_sampler import MashSampler
 
+def postProcess(time_stamp: str) -> bool:
+    return True
 
 def demo():
     model_file_path = "../../output/20241227_14:49:11/total_model_last.pth".replace('../.', '')

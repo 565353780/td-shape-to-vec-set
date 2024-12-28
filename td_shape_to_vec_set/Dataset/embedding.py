@@ -5,8 +5,7 @@ from tqdm import tqdm
 from torch.utils.data import Dataset
 
 from ma_sh.Method.io import loadMashFileParamsTensor
-
-from td_shape_to_vec_set.Config.transformer import getTransformer
+from ma_sh.Method.transformer import getTransformer
 
 
 class EmbeddingDataset(Dataset):
