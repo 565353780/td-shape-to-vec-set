@@ -1,131 +1,150 @@
 import torch
 import numpy as np
+from torch import nn
 from tqdm import tqdm
+from typing import Union, Tuple
 
-def step_edm_sampler(
-    net,
-    latents,
-    class_labels=None,
+
+def toTSteps(
+    num_steps: int,
+    sigma_min: float = 0.002,
+    sigma_max: float = 80,
+    rho: int = 7,
+) -> torch.Tensor:
+    # Time step discretization.
+    step_indices = torch.arange(num_steps, dtype=torch.float64)
+
+    t_steps = (
+        sigma_max ** (1 / rho)
+        + step_indices
+        / (num_steps - 1)
+        * (sigma_min ** (1 / rho) - sigma_max ** (1 / rho))
+    ) ** rho
+
+    t_steps = torch.cat(
+        [torch.as_tensor(t_steps), torch.zeros_like(t_steps[:1])]
+    )  # t_N = 0
+
+    return t_steps
+
+def addNoise(
+    x_cur: torch.Tensor,
+    t_cur: torch.Tensor,
+    num_steps: int,
     randn_like=torch.randn_like,
-    num_steps=18,
-    sigma_min=0.002,
-    sigma_max=80,
-    rho=7,
+    S_churn: int = 0,
+    S_min: float = 0,
+    S_max: float = float("inf"),
+    S_noise: float = 1,
+) -> Tuple[torch.Tensor, torch.Tensor]:
+    if S_churn == 0:
+        return x_cur, t_cur
+
+    # Increase noise temporarily.
+    gamma = (
+        min(S_churn / num_steps, np.sqrt(2) - 1) if S_min <= t_cur <= S_max else 0
+    )
+
+    if gamma == 0.0:
+        return x_cur, t_cur
+
+    t_hat = t_cur + gamma * t_cur
+    x_hat = x_cur + (t_hat**2 - t_cur**2).sqrt() * S_noise * randn_like(x_cur)
+
+    return x_hat, t_hat
+
+def toMaskedNoise(
+    latents: torch.Tensor,
+    x: torch.Tensor,
+    t: torch.Tensor,
+    fixed_mask: Union[torch.Tensor, None] = None,
+    randn_like = torch.randn_like,
+) -> torch.Tensor:
+    if fixed_mask is None:
+        return x
+
+    fixed_latents = latents[fixed_mask]
+
+    fixed_x = fixed_latents + randn_like(fixed_latents) * t
+
+    x[fixed_mask] = fixed_x
+
+    return x
+
+def deNoise(
+    net: nn.Module,
+    latents: torch.Tensor,
+    x_hat: torch.Tensor,
+    t_hat: torch.Tensor,
+    t_next: torch.Tensor,
+    condition: Union[torch.Tensor, None] = None,
+    apply_second_order_correction: bool = False,
+    fixed_mask: Union[torch.Tensor, None] = None,
+    randn_like = torch.randn_like,
+) -> torch.Tensor:
+    x_hat = toMaskedNoise(latents, x_hat, t_hat, fixed_mask, randn_like)
+
+    # Euler step.
+    denoised = net(x_hat, t_hat, condition).to(torch.float64)
+    d_cur = (x_hat - denoised) / t_hat
+    x_next = x_hat + (t_next - t_hat) * d_cur
+
+    # Apply 2nd order correction.
+    if apply_second_order_correction:
+        x_next = toMaskedNoise(latents, x_next, t_next, fixed_mask, randn_like)
+        denoised = net(x_next, t_next, condition).to(torch.float64)
+        d_prime = (x_next - denoised) / t_next
+        x_next = x_hat + (t_next - t_hat) * (0.5 * d_cur + 0.5 * d_prime)
+
+    return x_next
+
+def edm_sampler(
+    net: nn.Module,
+    latents: torch.Tensor,
+    condition: Union[torch.Tensor, None] = None,
+    randn_like=torch.randn_like,
+    num_steps: int = 18,
+    sigma_min: float = 0.002,
+    sigma_max: float = 80,
+    rho: int = 7,
     # S_churn=40, S_min=0.05, S_max=50, S_noise=1.003,
-    S_churn=0,
-    S_min=0,
-    S_max=float("inf"),
-    S_noise=1,
-):
+    S_churn: int = 0,
+    S_min: float = 0,
+    S_max: float = float("inf"),
+    S_noise: float = 1,
+    fixed_mask: Union[torch.Tensor, None] = None,
+) -> list:
     x_list = []
 
     # Adjust noise levels based on what's supported by the network.
     sigma_min = max(sigma_min, net.sigma_min)
     sigma_max = min(sigma_max, net.sigma_max)
 
-    # Time step discretization.
-    step_indices = torch.arange(num_steps, dtype=torch.float64, device=latents.device)
-    t_steps = (
-        sigma_max ** (1 / rho)
-        + step_indices
-        / (num_steps - 1)
-        * (sigma_min ** (1 / rho) - sigma_max ** (1 / rho))
-    ) ** rho
-    t_steps = torch.cat(
-        [net.round_sigma(t_steps), torch.zeros_like(t_steps[:1])]
-    )  # t_N = 0
+    t_steps = toTSteps(num_steps, sigma_min, sigma_max, rho).to(latents.device)
 
     # Main sampling loop.
     x_next = latents.to(torch.float64) * t_steps[0]
-    x_list.append(x_next.clone().detach())
+
+    x_list.append(x_next.detach().clone())
+
     # 0, ..., N-1
     for i, (t_cur, t_next) in enumerate(zip(tqdm(t_steps[:-1]), t_steps[1:])):
         x_cur = x_next
 
-        # Increase noise temporarily.
-        gamma = (
-            min(S_churn / num_steps, np.sqrt(2) - 1) if S_min <= t_cur <= S_max else 0
-        )
-        t_hat = net.round_sigma(t_cur + gamma * t_cur)
-        x_hat = x_cur + (t_hat**2 - t_cur**2).sqrt() * S_noise * randn_like(x_cur)
+        x_hat, t_hat = addNoise(x_cur, t_cur, num_steps, randn_like, S_churn, S_min, S_max, S_noise)
 
-        # Euler step.
-        denoised = net(x_hat, t_hat, class_labels).to(torch.float64)
-        d_cur = (x_hat - denoised) / t_hat
-        x_next = x_hat + (t_next - t_hat) * d_cur
+        apply_second_order_correction = i < num_steps - 1
+        x_next = deNoise(net, latents, x_hat, t_hat, t_next, condition, apply_second_order_correction, fixed_mask, randn_like)
 
-        # Apply 2nd order correction.
-        if i < num_steps - 1:
-            denoised = net(x_next, t_next, class_labels).to(torch.float64)
-            d_prime = (x_next - denoised) / t_next
-            x_next = x_hat + (t_next - t_hat) * (0.5 * d_cur + 0.5 * d_prime)
-        x_list.append(x_next.clone().detach())
+        x_list.append(x_next.detach().clone())
 
     return x_list
-
-
-def edm_sampler(
-    net,
-    latents,
-    class_labels=None,
-    randn_like=torch.randn_like,
-    num_steps=18,
-    sigma_min=0.002,
-    sigma_max=80,
-    rho=7,
-    # S_churn=40, S_min=0.05, S_max=50, S_noise=1.003,
-    S_churn=0,
-    S_min=0,
-    S_max=float("inf"),
-    S_noise=1,
-):
-    # Adjust noise levels based on what's supported by the network.
-    sigma_min = max(sigma_min, net.sigma_min)
-    sigma_max = min(sigma_max, net.sigma_max)
-
-    # Time step discretization.
-    step_indices = torch.arange(num_steps, dtype=torch.float64, device=latents.device)
-    t_steps = (
-        sigma_max ** (1 / rho)
-        + step_indices
-        / (num_steps - 1)
-        * (sigma_min ** (1 / rho) - sigma_max ** (1 / rho))
-    ) ** rho
-    t_steps = torch.cat(
-        [net.round_sigma(t_steps), torch.zeros_like(t_steps[:1])]
-    )  # t_N = 0
-
-    # Main sampling loop.
-    x_next = latents.to(torch.float64) * t_steps[0]
-    # 0, ..., N-1
-    for i, (t_cur, t_next) in enumerate(zip(tqdm(t_steps[:-1]), t_steps[1:])):
-        x_cur = x_next
-
-        # Increase noise temporarily.
-        gamma = (
-            min(S_churn / num_steps, np.sqrt(2) - 1) if S_min <= t_cur <= S_max else 0
-        )
-        t_hat = net.round_sigma(t_cur + gamma * t_cur)
-        x_hat = x_cur + (t_hat**2 - t_cur**2).sqrt() * S_noise * randn_like(x_cur)
-
-        # Euler step.
-        denoised = net(x_hat, t_hat, class_labels).to(torch.float64)
-        d_cur = (x_hat - denoised) / t_hat
-        x_next = x_hat + (t_next - t_hat) * d_cur
-
-        # Apply 2nd order correction.
-        if i < num_steps - 1:
-            denoised = net(x_next, t_next, class_labels).to(torch.float64)
-            d_prime = (x_next - denoised) / t_next
-            x_next = x_hat + (t_next - t_hat) * (0.5 * d_cur + 0.5 * d_prime)
-
-    return x_next
 
 
 def ablation_sampler(
     net,
     latents,
-    class_labels=None,
+    condition=None,
     randn_like=torch.randn_like,
     num_steps=512,
     sigma_min=None,
@@ -271,7 +290,7 @@ def ablation_sampler(
             return 0
 
     # Compute final time steps based on the corresponding noise levels.
-    t_steps = sigma_inv(net.round_sigma(sigma_steps))
+    t_steps = sigma_inv(torch.as_tensor(sigma_steps))
     t_steps = torch.cat([t_steps, torch.zeros_like(t_steps[:1])])  # t_N = 0
 
     if replace_noise is None:
@@ -290,7 +309,7 @@ def ablation_sampler(
             if S_min <= sigma(t_cur) <= S_max
             else 0
         )
-        t_hat = sigma_inv(net.round_sigma(sigma(t_cur) + gamma * sigma(t_cur)))
+        t_hat = sigma_inv(torch.as_tensor(sigma(t_cur) + gamma * sigma(t_cur)))
         x_hat = s(t_hat) / s(t_cur) * x_cur + (
             sigma(t_hat) ** 2 - sigma(t_cur) ** 2
         ).clip(min=0).sqrt() * s(t_hat) * S_noise * randn_like(x_cur)
@@ -298,7 +317,7 @@ def ablation_sampler(
         # Euler step.
         h = t_next - t_hat
         if replace_noise is None:
-            denoised = net(x_hat / s(t_hat), sigma(t_hat), class_labels).to(
+            denoised = net(x_hat / s(t_hat), sigma(t_hat), condition).to(
                 torch.float64
             )
             noise_list.append(denoised)
@@ -318,7 +337,7 @@ def ablation_sampler(
             x_next = x_hat + h * d_cur
         else:
             assert solver == "heun"
-            denoised = net(x_prime / s(t_prime), sigma(t_prime), class_labels).to(
+            denoised = net(x_prime / s(t_prime), sigma(t_prime), condition).to(
                 torch.float64
             )
             d_prime = (

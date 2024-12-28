@@ -352,7 +352,7 @@ class MashTrainer(object):
             cond=condition_tensor,
             batch_seeds=torch.arange(0, sample_num).to(self.device),
             diffuse_steps=timestamp_num,
-        ).cpu().float()
+        )[-1]
 
         mash_model = Mash(
             self.mash_channel,

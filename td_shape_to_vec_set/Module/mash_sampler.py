@@ -84,7 +84,7 @@ class MashSampler(object):
         sample_num: int,
         condition: Union[int, np.ndarray] = 0,
         diffuse_steps: int = 18,
-    ) -> torch.Tensor:
+    ) -> list:
         self.model.eval()
 
         if isinstance(condition, int):
@@ -101,7 +101,7 @@ class MashSampler(object):
             cond=condition_tensor,
             batch_seeds=torch.arange(0, sample_num).to(self.device),
             diffuse_steps=diffuse_steps,
-        ).float()
+        )
 
         return sampled_array
 
@@ -133,7 +133,6 @@ class MashSampler(object):
             cond=condition_tensor,
             batch_seeds=torch.arange(0, sample_num).to(self.device),
             diffuse_steps=diffuse_steps,
-            step_sample=True,
         )
 
         o3d_viewer = O3DViewer()

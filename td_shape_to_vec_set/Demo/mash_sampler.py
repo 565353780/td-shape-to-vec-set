@@ -18,7 +18,7 @@ def demo():
     use_ema = True
     device = "cpu"
 
-    sample_num = 1
+    sample_num = 9
     condition = 18
     diffuse_steps = 18
 
@@ -33,7 +33,7 @@ def demo():
     mash_sampler = MashSampler(model_file_path, use_ema, device)
 
     print("start diffuse", sample_num, "mashs....")
-    sampled_array = mash_sampler.sample(sample_num, condition, diffuse_steps)
+    sampled_array = mash_sampler.sample(sample_num, condition, diffuse_steps)[-1]
 
     object_dist = [2, 0, 2]
 
