@@ -12,7 +12,7 @@ from td_shape_to_vec_set.Module.mash_sampler import MashSampler
 
 
 def demo():
-    model_file_path = "../../output/shapenet_03001627_v1/total_model_last.pth".replace('../.', '')
+    model_file_path = "../../output/20241227_14:49:11/total_model_last.pth".replace('../.', '')
     transformer_id = 'ShapeNet_03001627'
     use_ema = True
     device = "cpu"
@@ -33,7 +33,7 @@ def demo():
     # sampled_array = mash_sampler.sample(sample_num, condition, diffuse_steps)[-1]
 
     mash_file_path_list = [
-        '/home/chli/github/ASDF/ma-sh/output/combined_mash.npy',
+        '../ma-sh/output/combined_mash.npy',
     ]
     sampled_array = mash_sampler.sampleWithFixedAnchors(mash_file_path_list, sample_num, condition, diffuse_steps)[-1]
 

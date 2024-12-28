@@ -17,7 +17,7 @@ def demo():
     device = "auto"
     warm_step_num = 2000
     finetune_step_num = -1
-    lr = 1e-4
+    lr = 2e-5
     ema_start_step = 5000
     ema_decay_init = 0.99
     ema_decay = 0.999

@@ -127,7 +127,7 @@ def edm_sampler(
     t_steps = toTSteps(num_steps, sigma_min, sigma_max, rho).to(latents.device)
 
     # Main sampling loop.
-    x_next = latents * t_steps[0]
+    x_next = randn_like(latents) * t_steps[0]
 
     x_list.append(x_next.detach().clone())
 
