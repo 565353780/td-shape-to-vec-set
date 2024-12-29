@@ -1,6 +1,9 @@
-pip install -U torch torchvision torchaudio
+cd ..
+git clone https://github.com/565353780/base-trainer.git
 
-pip install -U h5py timm einops tensorboard transformers \
-  scipy trimesh prefetch_generator
+cd base-trainer
+./setup.sh
+
+pip install -U h5py timm einops transformers scipy trimesh
 
 pip install torch-cluster torch-scatter -f https://data.pyg.org/whl/torch-2.5.1+cu124.html

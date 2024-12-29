@@ -44,34 +44,48 @@ class EDMPrecond(torch.nn.Module):
     def emb_category(self, class_labels):
         return self.category_emb(class_labels).unsqueeze(1)
 
-    def forwardCondition(self, x, sigma, condition, force_fp32=False, **model_kwargs):
+    def forwardCondition(self, x, sigma, condition):
         x = x.to(torch.float32)
         sigma = sigma.to(torch.float32).reshape(-1, 1, 1)
-        dtype = (
-            torch.float16
-            if (self.use_fp16 and not force_fp32 and x.device.type == "cuda")
-            else torch.float32
-        )
+        dtype = torch.float32
 
         c_skip = self.sigma_data**2 / (sigma**2 + self.sigma_data**2)
         c_out = sigma * self.sigma_data / (sigma**2 + self.sigma_data**2).sqrt()
         c_in = 1 / (self.sigma_data**2 + sigma**2).sqrt()
         c_noise = sigma.log() / 4
 
-        F_x = self.model(
-            (c_in * x).to(dtype), c_noise.flatten(), cond=condition, **model_kwargs
-        )
+        F_x = self.model((c_in * x).to(dtype), c_noise.flatten(), cond=condition)
         assert F_x.dtype == dtype
-        D_x = c_skip * x + c_out * F_x.to(torch.float32)
-        return D_x
 
-    def forward(self, x, sigma, condition, force_fp32=False, **model_kwargs):
+        D_x = c_skip * x + c_out * F_x.to(torch.float32)
+
+        result_dict = {
+            'D_x': D_x,
+        }
+
+        return result_dict
+
+    def forwardData(self, x: torch.Tensor, sigma: torch.Tensor, condition: torch.Tensor) -> torch.Tensor:
         if condition.dtype == torch.float32:
             condition = condition + 0.0 * self.emb_category(torch.zeros([x.shape[0]], dtype=torch.long, device=x.device))
         else:
             condition = self.emb_category(condition)
 
-        return self.forwardCondition(x, sigma, condition, force_fp32, **model_kwargs)
+        result_dict = self.forwardCondition(x, sigma, condition)
+
+        return result_dict['D_x']
+
+    def forward(self, data_dict: dict):
+        x = data_dict['noise']
+        sigma = data_dict['sigma']
+        condition = data_dict['condition']
+
+        if condition.dtype == torch.float32:
+            condition = condition + 0.0 * self.emb_category(torch.zeros([x.shape[0]], dtype=torch.long, device=x.device))
+        else:
+            condition = self.emb_category(condition)
+
+        return self.forwardCondition(x, sigma, condition)
 
     @torch.no_grad()
     def sample(

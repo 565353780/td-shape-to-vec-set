@@ -87,14 +87,14 @@ def deNoise(
     x_hat = toMaskedNoise(latents, x_hat, t_hat, fixed_mask, randn_like)
 
     # Euler step.
-    denoised = net(x_hat, t_hat, condition).to(torch.float64)
+    denoised = net.forwardData(x_hat, t_hat, condition).to(torch.float64)
     d_cur = (x_hat - denoised) / t_hat
     x_next = x_hat + (t_next - t_hat) * d_cur
 
     # Apply 2nd order correction.
     if apply_second_order_correction:
         x_next = toMaskedNoise(latents, x_next, t_next, fixed_mask, randn_like)
-        denoised = net(x_next, t_next, condition).to(torch.float64)
+        denoised = net.forwardData(x_next, t_next, condition).to(torch.float64)
         d_prime = (x_next - denoised) / t_next
         x_next = x_hat + (t_next - t_hat) * (0.5 * d_cur + 0.5 * d_prime)
 

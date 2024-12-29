@@ -1,4 +1,5 @@
 import torch
+from typing import Tuple
 
 from td_shape_to_vec_set.Module.stacked_random_generator import StackedRandomGenerator
 
@@ -10,7 +11,7 @@ class EDMLoss:
         self.sigma_data = sigma_data
         return
 
-    def __call__(self, net, inputs, condition, fixed_noise: bool = False) -> torch.Tensor:
+    def __call__(self, inputs, fixed_noise: bool = False) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         if fixed_noise:
             rnd = StackedRandomGenerator(inputs.device, torch.arange(inputs.shape[0]))
             rnd_gen = rnd
@@ -24,6 +25,4 @@ class EDMLoss:
 
         n = rnd_gen.randn_like(inputs) * sigma
 
-        D_yn = net(inputs + n, sigma, condition)
-        loss = weight * ((D_yn - inputs) ** 2)
-        return loss.mean()
+        return inputs + n, sigma, weight
