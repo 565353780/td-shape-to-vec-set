@@ -31,6 +31,7 @@ def demo():
     is_metric_lower_better = True
     sample_results_freq = 50
     use_dataloader_x = False
+    use_amp = False
 
     trainer = MashTrainer(
         dataset_root_folder_path,
@@ -52,6 +53,7 @@ def demo():
         is_metric_lower_better,
         sample_results_freq,
         use_dataloader_x,
+        use_amp,
     )
 
     trainer.train()

@@ -4,14 +4,14 @@ import numpy as np
 from tqdm import trange
 from typing import Union
 
+from ma_sh.Model.mash import Mash
+
 from base_trainer.Module.base_trainer import BaseTrainer
 
 from td_shape_to_vec_set.Loss.edm import EDMLoss
 from td_shape_to_vec_set.Dataset.mash import MashDataset
 from td_shape_to_vec_set.Dataset.single_shape import SingleShapeDataset
 from td_shape_to_vec_set.Model.edm_pre_cond import EDMPrecond
-
-from ma_sh.Model.mash import Mash
 
 
 class MashTrainer(BaseTrainer):
@@ -36,6 +36,7 @@ class MashTrainer(BaseTrainer):
         is_metric_lower_better: bool = True,
         sample_results_freq: int = -1,
         use_dataloader_x: bool = False,
+        use_amp: bool = False,
     ) -> None:
         self.dataset_root_folder_path = dataset_root_folder_path
 
@@ -72,6 +73,7 @@ class MashTrainer(BaseTrainer):
             is_metric_lower_better,
             sample_results_freq,
             use_dataloader_x,
+            use_amp,
         )
         return
 
@@ -117,6 +119,8 @@ class MashTrainer(BaseTrainer):
             self.dataloader_dict['eval'] =  {
                 'dataset': MashDataset(self.dataset_root_folder_path, 'eval'),
             }
+
+            self.dataloader_dict['eval']['dataset'].paths_list = self.dataloader_dict['eval']['dataset'].paths_list[:64]
 
         return True
 
