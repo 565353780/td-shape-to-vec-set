@@ -35,7 +35,6 @@ class MashTrainer(BaseTrainer):
         best_model_metric_name: Union[str, None] = None,
         is_metric_lower_better: bool = True,
         sample_results_freq: int = -1,
-        use_dataloader_x: bool = False,
         use_amp: bool = False,
     ) -> None:
         self.dataset_root_folder_path = dataset_root_folder_path
@@ -72,7 +71,6 @@ class MashTrainer(BaseTrainer):
             best_model_metric_name,
             is_metric_lower_better,
             sample_results_freq,
-            use_dataloader_x,
             use_amp,
         )
         return
