@@ -74,7 +74,7 @@ if __name__ == "__main__":
         for category_id in valid_category_id_list:
             print(category_id)
             for i in range(total//iters):
-                sampled_array = model.sample(cond=torch.Tensor([category_id]*iters).long().to(model_device), batch_seeds=torch.arange(i*iters, (i+1)*iters).to(model_device)).float().to(ae_device)
+                sampled_array = model.sample(cond=torch.Tensor([category_id]*iters).long().to(model_device), batch_seeds=torch.arange(i*iters, (i+1)*iters).to(model_device))[-1].float().to(ae_device)
 
                 print(sampled_array.shape, sampled_array.max(), sampled_array.min(), sampled_array.mean(), sampled_array.std())
 
